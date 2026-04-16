@@ -101,16 +101,29 @@ class ScrapedItem:
     raw_section: str              # SeniorCenter | Education | Government
 
 
-def fetch(url: str, *, retries: int = 3, backoff: float = 1.5) -> str:
-    """下載 URL,自動重試,回傳解碼 HTML。"""
+def fetch(url: str, *, retries: int = 3, backoff: float = 2.0, timeout: int = 60) -> str:
+    """下載 URL,自動重試,回傳解碼 HTML。
+
+    timeout 給 60s — 從 GitHub Actions(美國機房)連台灣政府網站會很慢。
+    """
     last_exc = None
+    headers = {
+        "User-Agent": UA,
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "zh-TW,zh;q=0.9,en;q=0.8",
+        "Accept-Encoding": "gzip, deflate",
+        "Connection": "keep-alive",
+    }
     for attempt in range(retries):
         try:
-            req = urllib.request.Request(url, headers={"User-Agent": UA})
-            with urllib.request.urlopen(req, timeout=25) as resp:
-                data = resp.read()
-                # 網站宣告 UTF-8
-                return data.decode("utf-8", errors="replace")
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                raw = resp.read()
+                # 處理 gzip
+                if resp.headers.get("Content-Encoding") == "gzip":
+                    import gzip
+                    raw = gzip.decompress(raw)
+                return raw.decode("utf-8", errors="replace")
         except Exception as e:
             last_exc = e
             time.sleep(backoff * (attempt + 1))
