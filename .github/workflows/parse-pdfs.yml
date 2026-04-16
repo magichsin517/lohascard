@@ -1,0 +1,42 @@
+name: PDF 課表解析 — 樂齡中心月課表 → 單堂課
+
+# 手動觸發 + 每週日凌晨 4:30 (台北時間) 自動跑一次,補抓新爬到的月課表
+on:
+  schedule:
+    - cron: '30 20 * * 6'   # UTC 週六 20:30 = 台北週日 04:30
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "一次最多處理幾筆(空白 = 全部)"
+        required: false
+        default: ""
+
+jobs:
+  parse:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120   # Gemini 呼叫多,給 2 小時
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install libreoffice (for .docx → .pdf)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libreoffice-core libreoffice-writer --no-install-recommends
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run parser
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          if [ -n "${{ github.event.inputs.limit }}" ]; then
+            python3 -u scripts/parse/senioredu_courses.py --limit ${{ github.event.inputs.limit }} --sleep 0.5
+          else
+            python3 -u scripts/parse/senioredu_courses.py --all --sleep 0.5
+          fi
