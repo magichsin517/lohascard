@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 240" fill="none">
+  <rect width="400" height="240" fill="#f9f1ea"/>
+  <path d="M200 80 C 180 60, 140 60, 140 100 C 140 130, 200 170, 200 170 C 200 170, 260 130, 260 100 C 260 60, 220 60, 200 80 Z" fill="#e8d4c0" opacity="0.7"/>
+  <path d="M200 80 C 180 60, 140 60, 140 100 C 140 130, 200 170, 200 170 C 200 170, 260 130, 260 100 C 260 60, 220 60, 200 80 Z" stroke="#b8714a" stroke-width="1.5" fill="none"/>
+  <path d="M150 110 L175 110 L185 95 L195 125 L205 110 L250 110" stroke="#7d4a2e" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <text x="200" y="220" font-family="Noto Sans TC, sans-serif" font-size="14" fill="#7d4a2e" text-anchor="middle" opacity="0.7">健康 · health</text>
+</svg>

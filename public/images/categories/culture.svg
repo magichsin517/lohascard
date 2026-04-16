@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 240" fill="none">
+  <rect width="400" height="240" fill="#faf4e6"/>
+  <circle cx="200" cy="110" r="45" fill="#f0e2be" opacity="0.8"/>
+  <rect x="195" y="50" width="2" height="60" fill="#c89447"/>
+  <path d="M170 90 Q 175 80, 185 85 Q 200 90, 215 85 Q 225 80, 230 90" stroke="#c89447" stroke-width="1.5" fill="none"/>
+  <circle cx="165" cy="155" r="12" fill="#c89447" opacity="0.7"/>
+  <path d="M177 152 L177 125" stroke="#c89447" stroke-width="2"/>
+  <circle cx="235" cy="155" r="12" fill="#c89447" opacity="0.7"/>
+  <path d="M247 152 L247 125" stroke="#c89447" stroke-width="2"/>
+  <path d="M177 125 Q 200 118, 247 125" stroke="#c89447" stroke-width="1.5" fill="none"/>
+  <text x="200" y="220" font-family="Noto Sans TC, sans-serif" font-size="14" fill="#8a6528" text-anchor="middle" opacity="0.7">文娛 · culture</text>
+</svg>

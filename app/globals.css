@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;600;700&display=swap');
+
+:root {
+  /* 全站黑體。display 用同一套字型、較重字重拉出層次 */
+  --font-sans: 'Noto Sans TC', 'PingFang TC', 'PingFang SC', 'Microsoft JhengHei', system-ui, sans-serif;
+  --font-display: 'Noto Sans TC', 'PingFang TC', 'PingFang SC', 'Microsoft JhengHei', system-ui, sans-serif;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: #fdfcf8;
+  color: #1a1a1a;
+  font-weight: 400;
+  line-height: 1.7;
+}
+
+/* display 字型預設較重字重,讓標題跟內文有層次(依然是黑體) */
+.font-display {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* 選取文字時的顏色 */
+::selection {
+  background: #d6ddc9;
+  color: #1a1a1a;
+}
+
+/* 預設分類卡片的裝飾圖案 */
+.pattern-dots {
+  background-image: radial-gradient(circle, rgba(0,0,0,0.08) 1px, transparent 1px);
+  background-size: 16px 16px;
+}
+
+.pattern-grid {
+  background-image:
+    linear-gradient(rgba(0,0,0,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,0,0,0.04) 1px, transparent 1px);
+  background-size: 20px 20px;
+}

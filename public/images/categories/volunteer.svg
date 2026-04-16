@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 240" fill="none">
+  <rect width="400" height="240" fill="#f2f6ef"/>
+  <path d="M200 170 C 160 170, 130 140, 130 110 C 130 85, 150 70, 175 80 C 185 85, 195 95, 200 105 C 205 95, 215 85, 225 80 C 250 70, 270 85, 270 110 C 270 140, 240 170, 200 170 Z" fill="#d6ddc9" opacity="0.8"/>
+  <path d="M200 170 C 160 170, 130 140, 130 110 C 130 85, 150 70, 175 80 C 185 85, 195 95, 200 105 C 205 95, 215 85, 225 80 C 250 70, 270 85, 270 110 C 270 140, 240 170, 200 170 Z" stroke="#5a7a3e" stroke-width="1.5" fill="none"/>
+  <circle cx="200" cy="115" r="4" fill="#3a5226"/>
+  <text x="200" y="215" font-family="Noto Sans TC, sans-serif" font-size="14" fill="#3a5226" text-anchor="middle" opacity="0.7">志願服務 · volunteer</text>
+</svg>

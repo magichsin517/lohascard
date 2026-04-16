@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 240" fill="none">
+  <rect width="400" height="240" fill="#eef4f8"/>
+  <path d="M50 170 Q 100 140, 150 155 Q 200 170, 250 145 Q 300 120, 350 150 L350 200 L50 200 Z" fill="#d4e1ec" opacity="0.8"/>
+  <path d="M100 155 L130 105 L160 155 Z" fill="#4a7a9a" opacity="0.6"/>
+  <path d="M150 165 L190 95 L230 165 Z" fill="#4a7a9a" opacity="0.8"/>
+  <path d="M210 160 L250 115 L290 160 Z" fill="#4a7a9a" opacity="0.7"/>
+  <circle cx="310" cy="70" r="18" fill="#c89447" opacity="0.6"/>
+  <path d="M280 125 L285 115 L290 125" stroke="#2f5775" stroke-width="1.5" fill="none"/>
+  <text x="200" y="225" font-family="Noto Sans TC, sans-serif" font-size="14" fill="#2f5775" text-anchor="middle" opacity="0.7">旅遊 · travel</text>
+</svg>

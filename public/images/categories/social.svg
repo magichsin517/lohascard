@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 240" fill="none">
+  <rect width="400" height="240" fill="#f4eef2"/>
+  <circle cx="160" cy="100" r="25" fill="#e8dce4" opacity="0.8"/>
+  <path d="M130 160 Q 130 135, 160 135 Q 190 135, 190 160 L 190 180 L 130 180 Z" fill="#e8dce4" opacity="0.8"/>
+  <circle cx="240" cy="100" r="25" fill="#dcd1d8" opacity="0.8"/>
+  <path d="M210 160 Q 210 135, 240 135 Q 270 135, 270 160 L 270 180 L 210 180 Z" fill="#dcd1d8" opacity="0.8"/>
+  <circle cx="160" cy="100" r="25" fill="none" stroke="#8a5a7a" stroke-width="1.5"/>
+  <circle cx="240" cy="100" r="25" fill="none" stroke="#5c3a52" stroke-width="1.5"/>
+  <path d="M185 115 Q 200 105, 215 115" stroke="#8a5a7a" stroke-width="1.5" fill="none"/>
+  <text x="200" y="215" font-family="Noto Sans TC, sans-serif" font-size="14" fill="#5c3a52" text-anchor="middle" opacity="0.7">社交 · social</text>
+</svg>

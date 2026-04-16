@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 240" fill="none">
+  <rect width="400" height="240" fill="#f4eef2"/>
+  <rect x="140" y="70" width="120" height="90" rx="2" fill="#e8dce4" opacity="0.8"/>
+  <rect x="148" y="78" width="104" height="2" fill="#8a5a7a" opacity="0.5"/>
+  <rect x="148" y="88" width="80" height="2" fill="#8a5a7a" opacity="0.5"/>
+  <rect x="148" y="98" width="90" height="2" fill="#8a5a7a" opacity="0.5"/>
+  <rect x="148" y="108" width="70" height="2" fill="#8a5a7a" opacity="0.5"/>
+  <rect x="148" y="118" width="85" height="2" fill="#8a5a7a" opacity="0.5"/>
+  <rect x="148" y="128" width="60" height="2" fill="#8a5a7a" opacity="0.5"/>
+  <path d="M130 165 L270 165 L260 175 L140 175 Z" fill="#8a5a7a" opacity="0.3"/>
+  <text x="200" y="220" font-family="Noto Sans TC, sans-serif" font-size="14" fill="#5c3a52" text-anchor="middle" opacity="0.7">學習 · learning</text>
+</svg>
