@@ -117,9 +117,9 @@ class Supa:
         # 用 source_name 過濾
         q = "?source_name=eq." + urllib.parse.quote("教育部樂齡學習網")
         q += "&select=id,title,source_url,organizer_name,city,district,tags"
-        # 只挑還沒解析過的(tags 不含「課表已解析」和「解析失敗」的)
-        # PostgREST tags 否定 contains:  tags=not.cs.{"課表已解析"}
-        q += "&tags=not.cs.{" + urllib.parse.quote("\"課表已解析\"") + "}"
+        # 排除已處理過的 tag — 不論是成功解析、無附件、還是失敗,都不要再重試
+        for skip_tag in ("課表已解析", "無課表附件", "解析失敗", "解析0堂"):
+            q += "&tags=not.cs.{" + urllib.parse.quote(f'"{skip_tag}"') + "}"
         q += "&order=id.asc"
         if ids:
             q += "&id=in.(" + ",".join(str(i) for i in ids) + ")"
@@ -353,8 +353,12 @@ def process_one(parent: Activity, supa: Supa, api_key: str, *, dry_run: bool = F
             mime = "application/pdf"
         except Exception as e:
             print(f"  [docx-convert] {e}")
+            if not dry_run:
+                supa.patch_id(parent.id, {"tags": list(parent.tags) + ["解析失敗"]})
             return "docx_failed", 0
     else:
+        if not dry_run:
+            supa.patch_id(parent.id, {"tags": list(parent.tags) + ["解析失敗"]})
         return "unsupported_ext", 0
 
     try:
@@ -388,12 +392,14 @@ def process_one(parent: Activity, supa: Supa, api_key: str, *, dry_run: bool = F
 
 
 def main() -> int:
+    from concurrent.futures import ThreadPoolExecutor, as_completed
     ap = argparse.ArgumentParser()
     ap.add_argument("--limit", type=int, default=10, help="一次處理幾筆(預設 10)")
     ap.add_argument("--all", action="store_true", help="全部處理(忽略 --limit)")
     ap.add_argument("--ids", type=str, help="只處理指定 id 清單,逗號分隔")
     ap.add_argument("--dry-run", action="store_true", help="只看,不寫 DB")
-    ap.add_argument("--sleep", type=float, default=1.0, help="每筆之間等幾秒(避免 rate limit)")
+    ap.add_argument("--sleep", type=float, default=0.0, help="每筆之間等幾秒(worker=1 時有用)")
+    ap.add_argument("--workers", type=int, default=4, help="並行 worker 數(預設 4)")
     args = ap.parse_args()
 
     supa_url = os.environ.get("SUPABASE_URL")
@@ -410,26 +416,42 @@ def main() -> int:
     if args.ids:
         ids = [int(x) for x in args.ids.split(",") if x.strip()]
     parents = supa.list_parents(limit=limit, ids=ids)
-    print(f"=== 將處理 {len(parents)} 筆月課表 ===")
+    print(f"=== 將處理 {len(parents)} 筆月課表(workers={args.workers}) ===", flush=True)
 
     stats: dict[str, int] = {}
     total_inserted = 0
-    for i, p in enumerate(parents, 1):
-        print(f"[{i:>3}/{len(parents)}] id={p.id} {p.city}/{p.district or '-'} {p.title[:40]}")
+
+    def _work(p: Activity):
         try:
             status, n = process_one(p, supa, api_key, dry_run=args.dry_run)
+            return p, status, n, None
         except Exception as e:
-            print(f"  [exception] {e}")
-            status, n = "exception", 0
-        stats[status] = stats.get(status, 0) + 1
-        total_inserted += n
-        print(f"  → {status} (+{n})")
-        time.sleep(args.sleep)
+            return p, "exception", 0, str(e)
 
-    print("\n=== 結果統計 ===")
+    if args.workers <= 1:
+        for i, p in enumerate(parents, 1):
+            print(f"[{i:>3}/{len(parents)}] id={p.id} {p.city}/{p.district or '-'} {p.title[:40]}", flush=True)
+            _, status, n, err = _work(p)
+            stats[status] = stats.get(status, 0) + 1
+            total_inserted += n
+            print(f"  → {status} (+{n}){' '+err if err else ''}", flush=True)
+            if args.sleep:
+                time.sleep(args.sleep)
+    else:
+        done = 0
+        with ThreadPoolExecutor(max_workers=args.workers) as ex:
+            futures = {ex.submit(_work, p): p for p in parents}
+            for fut in as_completed(futures):
+                done += 1
+                p, status, n, err = fut.result()
+                stats[status] = stats.get(status, 0) + 1
+                total_inserted += n
+                print(f"[{done:>3}/{len(parents)}] id={p.id} {p.city}/{p.district or '-'} {p.title[:32]} → {status} (+{n}){' '+err if err else ''}", flush=True)
+
+    print("\n=== 結果統計 ===", flush=True)
     for k, v in sorted(stats.items(), key=lambda x: -x[1]):
-        print(f"  {k}: {v}")
-    print(f"  共插入單堂課 {total_inserted} 筆")
+        print(f"  {k}: {v}", flush=True)
+    print(f"  共插入單堂課 {total_inserted} 筆", flush=True)
     return 0
 
 
