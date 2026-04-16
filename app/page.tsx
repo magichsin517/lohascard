@@ -9,10 +9,25 @@ import LineCallout from '@/components/LineCallout';
 export const revalidate = 60; // 每分鐘重新驗證一次
 
 async function getActivities(category?: string, district?: string, city?: string, pricing?: string): Promise<Activity[]> {
+  // 過濾過期:
+  //   - recurring 活動永遠顯示(沒有終止日)
+  //   - single 活動若有 end_date,必須 end_date >= 今天
+  //   - single 活動若只有 start_date,必須 start_date >= 今天
+  //   - 完全沒日期的活動(爬來的月度課表)暫時保留顯示 — 等 PDF 解析後補日期再加嚴
+  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD (UTC)
+
   let query = supabase
     .from('activities')
     .select('*')
     .eq('status', 'active')
+    // recurring 一律保留,single 活動則看日期
+    // PostgREST or filter: event_type.eq.recurring, or(end_date.gte.today, and(end_date.is.null, start_date.gte.today), and(end_date.is.null, start_date.is.null))
+    .or(
+      `event_type.eq.recurring,` +
+      `end_date.gte.${today},` +
+      `and(end_date.is.null,start_date.gte.${today}),` +
+      `and(end_date.is.null,start_date.is.null)`
+    )
     .order('start_date', { ascending: true, nullsFirst: false });
 
   if (category && category !== 'all') {
