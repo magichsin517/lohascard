@@ -4,11 +4,20 @@ import ActivityCard from '@/components/ActivityCard';
 import CategoryFilter from '@/components/CategoryFilter';
 import DistrictFilter from '@/components/DistrictFilter';
 import PricingFilter from '@/components/PricingFilter';
+import Pagination from '@/components/Pagination';
 import LineCallout from '@/components/LineCallout';
 
 export const revalidate = 60; // 每分鐘重新驗證一次
 
-async function getActivities(category?: string, district?: string, city?: string, pricing?: string): Promise<Activity[]> {
+const PAGE_SIZE = 30;
+
+async function getActivities(
+  category: string | undefined,
+  district: string | undefined,
+  city: string | undefined,
+  pricing: string | undefined,
+  page: number
+): Promise<{ rows: Activity[]; total: number }> {
   // 過濾過期:
   //   - recurring 活動永遠顯示(沒有終止日)
   //   - single 活動若有 end_date,必須 end_date >= 今天
@@ -16,19 +25,27 @@ async function getActivities(category?: string, district?: string, city?: string
   //   - 完全沒日期的活動(爬來的月度課表)暫時保留顯示 — 等 PDF 解析後補日期再加嚴
   const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD (UTC)
 
+  const from = (page - 1) * PAGE_SIZE;
+  const to = from + PAGE_SIZE - 1;
+
   let query = supabase
     .from('activities')
-    .select('*')
+    .select('*', { count: 'exact' })
     .eq('status', 'active')
+    // 不顯示這些雜訊 tag 的 parent 活動
+    .not('tags', 'cs', '{"無課表附件"}')
+    .not('tags', 'cs', '{"解析失敗"}')
+    .not('tags', 'cs', '{"解析0堂"}')
     // recurring 一律保留,single 活動則看日期
-    // PostgREST or filter: event_type.eq.recurring, or(end_date.gte.today, and(end_date.is.null, start_date.gte.today), and(end_date.is.null, start_date.is.null))
     .or(
       `event_type.eq.recurring,` +
       `end_date.gte.${today},` +
       `and(end_date.is.null,start_date.gte.${today}),` +
       `and(end_date.is.null,start_date.is.null)`
     )
-    .order('start_date', { ascending: true, nullsFirst: false });
+    .order('start_date', { ascending: true, nullsFirst: false })
+    .order('id', { ascending: true })
+    .range(from, to);
 
   if (category && category !== 'all') {
     query = query.eq('category', category);
@@ -44,21 +61,29 @@ async function getActivities(category?: string, district?: string, city?: string
     query = query.contains('tags', [pricing]);
   }
 
-  const { data, error } = await query;
+  const { data, error, count } = await query;
   if (error) {
     console.error('[getActivities]', error);
-    return [];
+    return { rows: [], total: 0 };
   }
-  return (data as Activity[]) || [];
+  return { rows: (data as Activity[]) || [], total: count ?? 0 };
 }
 
 export default async function HomePage({
   searchParams,
 }: {
-  searchParams: Promise<{ category?: string; district?: string; city?: string; pricing?: string }>;
+  searchParams: Promise<{ category?: string; district?: string; city?: string; pricing?: string; page?: string }>;
 }) {
   const params = await searchParams;
-  const activities = await getActivities(params.category, params.district, params.city, params.pricing);
+  const page = Math.max(1, parseInt(params.page || '1', 10) || 1);
+  const { rows: activities, total } = await getActivities(
+    params.category,
+    params.district,
+    params.city,
+    params.pricing,
+    page
+  );
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
     <>
@@ -93,18 +118,21 @@ export default async function HomePage({
             <p className="text-[13px] text-ink-faded">
               {params.city ? `${params.city} · ` : ''}
               {params.district ? `${params.district} · ` : ''}
-              {activities.length} 個活動
+              共 {total} 個活動{totalPages > 1 ? `(第 ${page}/${totalPages} 頁)` : ''}
             </p>
           </div>
 
           {activities.length === 0 ? (
             <EmptyState />
           ) : (
-            <div className="grid gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-              {activities.map((a) => (
-                <ActivityCard key={a.id} activity={a} />
-              ))}
-            </div>
+            <>
+              <div className="grid gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                {activities.map((a) => (
+                  <ActivityCard key={a.id} activity={a} />
+                ))}
+              </div>
+              <Pagination currentPage={page} totalPages={totalPages} />
+            </>
           )}
         </section>
 
