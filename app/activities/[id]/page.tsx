@@ -18,13 +18,13 @@ async function getActivity(id: string): Promise<Activity | null> {
 }
 
 async function getSessionsInGroup(activity: Activity): Promise<Activity[]> {
-  // 用 title + location_name + organizer_name 精確比對同一活動的其他場次
-  // (不過濾 event_type,因為 PDF 解析時有時會誤標)
+  // 用 location_name + organizer_name 做粗篩(不做 title 精確比對,因為
+  // dash 變體會造成同活動兩個 title 無法 SQL `.eq()` 匹配),撈回後再用
+  // normalize 過的 groupKey 做二次精確過濾。
   let q = supabase
     .from('activities')
     .select('*')
-    .eq('status', 'active')
-    .eq('title', activity.title);
+    .eq('status', 'active');
   q = activity.location_name
     ? q.eq('location_name', activity.location_name)
     : q.is('location_name', null);
@@ -35,7 +35,7 @@ async function getSessionsInGroup(activity: Activity): Promise<Activity[]> {
   const { data, error } = await q;
   if (error || !data) return [activity];
   const rows = data as Activity[];
-  // 再以 normalize 過的 groupKey 做二次確認,避免空白差異漏網
+  // 用 normalize 過的 groupKey(含 dash / 台臺變體統一)比對
   const myKey = groupKey(activity);
   return rows.filter((r) => groupKey(r) === myKey);
 }

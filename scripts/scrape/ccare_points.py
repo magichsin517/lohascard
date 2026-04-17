@@ -78,7 +78,11 @@ class Point:
 
 def clean_text(s: str) -> str:
     s = html_lib.unescape(s)
-    return re.sub(r"\s+", " ", s).strip()
+    s = re.sub(r"\s+", " ", s).strip()
+    # Dash 正規化 + 臺→台 (跟 senioredu_moe.py / frontend 一致)
+    s = re.sub(r"[\u2010\u2011\u2012\u2013\u2014\u2015\u2212]", "-", s)
+    s = s.replace("臺", "台")
+    return s
 
 
 def extract_city_district(address: str | None) -> tuple[str | None, str | None]:

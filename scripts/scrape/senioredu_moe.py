@@ -183,6 +183,10 @@ BRACKET_CENTER_RE = re.compile(r"[【\[]\s*([^】\]]{2,30})\s*[】\]]")
 def clean_text(s: str) -> str:
     s = html_lib.unescape(s)
     s = re.sub(r"\s+", " ", s).strip()
+    # 把各種 dash 變體統一成 ASCII hyphen-minus(避免同活動因 dash 不同被分組)
+    s = re.sub(r"[\u2010\u2011\u2012\u2013\u2014\u2015\u2212]", "-", s)
+    # 臺 → 台(縣市名已經正規化了,這裡處理中心名/標題裡的殘留)
+    s = s.replace("臺", "台")
     return s
 
 

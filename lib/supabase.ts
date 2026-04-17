@@ -112,7 +112,14 @@ export type ActivityGroup = {
 };
 
 function normalizeKeyPart(s: string | null | undefined): string {
-  return (s || '').trim().replace(/\s+/g, '');
+  return (s || '')
+    .trim()
+    .replace(/\s+/g, '')
+    // 把各種 dash 變體統一成 ASCII hyphen-minus,避免同一活動因為 dash 不同被分成兩組
+    // –(en dash U+2013)、—(em dash U+2014)、−(minus U+2212)、‒‑‐ 各種 unicode hyphen
+    .replace(/[\u2010\u2011\u2012\u2013\u2014\u2015\u2212]/g, '-')
+    // 統一台/臺(scraper 已處理縣市,但標題/中心名可能混用)
+    .replace(/臺/g, '台');
 }
 
 export function groupKey(a: Pick<Activity, 'title' | 'location_name' | 'organizer_name'>): string {
