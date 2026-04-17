@@ -116,13 +116,103 @@ def _extract_tables(html: str) -> list[list[list[str]]]:
 
 
 def _find_course_table(tables: list[list[list[str]]]) -> list[list[str]] | None:
-    """挑出含『項次/活動名稱/日期/上課時間』header 的課表。"""
+    """挑出課表 — 必有「項次」+「活動名稱」,且至少有「日期」或「時間」欄位之一。
+
+    涵蓋多種 header 變體(字首可能有空白、小括號註釋):
+      - 項次 | 活動名稱 | 日期 | 上課時間 | 地點 | 講師                      (6 欄)
+      - 項次 | 活動名稱 | 日期(時間) | 地點 | 講師 | 報名費用 | 備註         (7 欄,日期合併時間)
+      - 項次 | 活動名稱 | 日期 | 地點 | 講師 | 報名費用 | 備註               (7 欄)
+      - 項次 | 活動名稱 | 日期 | 時間 | 地點 | 講師 | 報名費用 | 備註         (8 欄)
+      - 項次 | 活動名稱 | 日期(上課時間) | 地點(含地址) | 講師及簡歷 | 報名費 | 備註  (7 欄,欄名帶註釋)
+      - 項 次 | 活動名稱 | ...                                                  (項次中間有空白)
+    """
     for tbl in tables:
         for row in tbl[:3]:
-            joined = "".join(row)
-            if "項次" in joined and "活動名稱" in joined and "日期" in joined and "上課時間" in joined:
+            # 把所有 cell 合併後再剝空白,可容忍「項 次」這種中間有空白的 header
+            joined_nospace = re.sub(r"\s+", "", "".join(row))
+            # 序號欄:項次 / 班別 / 編號 / 序 / 課編 / 課號 都算
+            has_item_col = any(k in joined_nospace for k in ("項次", "班別", "編號", "課編", "課號")) or \
+                joined_nospace.startswith("序")
+            # 課名欄:活動名稱 / 課程名稱 / 名稱
+            has_name_col = any(k in joined_nospace for k in ("活動名稱", "課程名稱")) or \
+                (joined_nospace.count("名稱") >= 1)
+            has_date_col = "日期" in joined_nospace or "時間" in joined_nospace
+            if has_item_col and has_name_col and has_date_col:
                 return tbl
     return None
+
+
+# 偵測「X月未辦理課程 / 暫停辦理 / 未開課」這種公告本身沒課的 case。
+# 這跟「parser 解析不出 table」是兩回事 — 這類公告即使解析了也沒東西可看。
+_NO_CLASS_PATTERNS = [
+    "未辦理課程", "未辦理", "無辦理課程", "無辦理活動", "無辦理",
+    "未開課", "無開課", "暫停辦理", "暫停開課", "本月無",
+    "並無課程", "並無開課", "無招生", "本月停課",
+]
+
+
+def detect_no_class_announcement(html: str) -> str | None:
+    """若公告內文實質是『本月沒開課』,回傳命中的關鍵字;否則 None。
+
+    用於 process_one 短路:這類 parent 直接標 tag `本月無課` 並刪除,
+    因為對使用者沒展示價值(就是一張『本月沒課』的公告)。
+    """
+    # 先剝 HTML tag,避免命中 CSS/JS/導覽列
+    text = _TAG_RE.sub(" ", html)
+    text = html_lib.unescape(text)
+    text = re.sub(r"\s+", " ", text)
+    # 只掃「內文區」— 用「附件下載」或「公告單位」當右界,避免誤中 footer
+    end_anchors = ["附件下載", "公告單位", "公告日期"]
+    for anchor in end_anchors:
+        idx = text.find(anchor)
+        if idx > 0:
+            text = text[:idx]
+            break
+    for pat in _NO_CLASS_PATTERNS:
+        if pat in text:
+            return pat
+    return None
+
+
+def _parse_header_cols(header_row: list[str]) -> dict[str, int]:
+    """從 header 列決定每個欄位對應的 column index。
+
+    回傳 dict,key 可能有:title / date / time / location / teacher / cost / remarks
+    找不到的欄位不會放進 dict。
+
+    欄名可能帶括號註釋(例如「地點(含地址)」、「講師及簡歷」、「報名費用(如無則免費)」)
+    或中間有空白(例如「項 次」、「備 註」)。使用子字串 + 空白容忍匹配。
+    """
+    cols: dict[str, int] = {}
+    for i, cell in enumerate(header_row):
+        c = re.sub(r"\s+", "", cell)  # 把所有空白吃掉,方便子字串比對
+        if not c:
+            continue
+        # 活動名稱 / 課程名稱 / 名稱(單獨出現)
+        # 注意:不把「班別」當 title — 班別是編號欄,真正課名仍是後面的「活動名稱」。
+        if ("活動名稱" in c or "課程名稱" in c or c == "名稱") and "title" not in cols:
+            cols["title"] = i
+        # 日期 (可能含時間)
+        elif "日期" in c and "date" not in cols:
+            cols["date"] = i
+            if "時間" in c:
+                cols["time"] = i  # 合併欄位
+        # 純時間欄
+        elif "時間" in c and "time" not in cols:
+            cols["time"] = i
+        # 地點 / 上課地點 / 地點(含地址)
+        elif "地點" in c and "location" not in cols:
+            cols["location"] = i
+        # 講師 / 老師 / 講師及簡歷 / 講師簡介
+        elif ("講師" in c or "老師" in c) and "teacher" not in cols:
+            cols["teacher"] = i
+        # 費用 / 報名費 / 收費
+        elif ("費" in c or "收費" in c) and "cost" not in cols:
+            cols["cost"] = i
+        # 備註
+        elif "備註" in c and "remarks" not in cols:
+            cols["remarks"] = i
+    return cols
 
 
 # 日期欄可能的格式:
@@ -201,7 +291,11 @@ def _extract_contact_line(html: str) -> tuple[str | None, str | None]:
 
 def parse_html_course_table(html: str) -> list[dict]:
     """若 detail page 內文有 HTML course table,回傳跟 Gemini 相同格式的 list[dict]。
-    沒抓到回 [] → 外層會走原本「無課表附件」tagging。"""
+    沒抓到回 [] → 外層會走原本「無課表附件」tagging。
+
+    支援多種 header 變體(見 _find_course_table doc),動態建立 column index。
+    也支援「多場次續列」(2-cell: date + location)把額外場次 append 到 remarks。
+    """
     tables = _extract_tables(html)
     tbl = _find_course_table(tables)
     if not tbl:
@@ -214,28 +308,80 @@ def parse_html_course_table(html: str) -> list[dict]:
             header_idx = i
             break
 
+    header_row = tbl[header_idx]
+    cols = _parse_header_cols(header_row)
+    # title/date 是最低要求,沒有就放棄
+    if "title" not in cols or "date" not in cols:
+        return []
+    n_cols = len(header_row)
+
     phone, _ = _extract_contact_line(html)
 
     courses: list[dict] = []
     current: dict | None = None
 
+    def cell(row: list[str], key: str) -> str:
+        idx = cols.get(key)
+        if idx is None or idx >= len(row):
+            return ""
+        return row[idx].strip()
+
+    # 判斷是否為「項次/班別/編號欄」— 這欄有值才算 main row(除非是 rowspan 合併 → 空值也算)
+    header_first_cell = re.sub(r"\s+", "", header_row[0]) if header_row else ""
+    is_classify_col = any(k in header_first_cell for k in ("班別", "編號", "課編", "課號"))
+
+    def _is_item_no(s: str) -> bool:
+        """項次欄可能的值:'1' / '1.' / '01' / '一' / '' (rowspan 首筆)。
+        若首欄其實是「班別/編號」型字串分類,則接受任何非空字串。"""
+        t = s.strip().rstrip("..、,.")
+        if not t:
+            return True  # 空的 → rowspan 合併,視為主列(由 title 欄是否有值把關)
+        if is_classify_col:
+            # 班別欄可能是「古風」「本部」「N20」等 — 任何非空都算
+            return len(t) <= 20
+        if t.isdigit():
+            return True
+        if re.match(r"^\d+[、,\.]?$", t):
+            return True
+        if t in "一二三四五六七八九十":
+            return True
+        return False
+
+    title_idx = cols.get("title", 1)
     for row in tbl[header_idx + 1:]:
-        # 新的主資料列:>=6 cells 且第一格是數字(項次)
-        if len(row) >= 6 and row[0].strip().isdigit() and row[1].strip():
+        # 主資料列:欄數跟 header 接近 + title 欄必有內容 + 項次欄符合數字 pattern(含空值)
+        is_main = (
+            len(row) >= max(4, n_cols - 2)
+            and title_idx < len(row)
+            and row[title_idx].strip()
+            and _is_item_no(row[0])
+        )
+        if is_main:
             if current:
                 courses.append(current)
-            title = row[1].strip().rstrip("、，,").strip()
-            date_str = row[2].strip()
-            time_str = row[3].strip()
-            loc = row[4].strip()
-            teacher = row[5].strip() or None
+            title = cell(row, "title").rstrip("、，,").strip()
+            date_str = cell(row, "date")
+            time_str = cell(row, "time") if "time" in cols else ""
+            loc = cell(row, "location")
+            teacher = cell(row, "teacher") or None
+            cost_note = cell(row, "cost") or None
+            remarks_cell = cell(row, "remarks")
 
-            start_time, end_time = _parse_time_range(time_str)
+            # 若 date 欄合併了時間(例「4/22(三) 9:30~11:30」或「4/13、4/20、4/27 上午 9:00-11:00」),
+            # 優先從 date_str 抽時間;若抽不到再用 time 欄。
+            start_time, end_time = _parse_time_range(date_str)
+            if not start_time and time_str:
+                start_time, end_time = _parse_time_range(time_str)
 
-            # 推星期:先試 2026/04/7.14 那種,再試文字「每週三/週三/星期三」,最後 fallback 到原文
+            # 推星期:先試 2026/04/7.14 那種,再試「星期三/週三/(三)」,最後 fallback 到原文
             weekday_inferred = _infer_weekday_from_dates(date_str)
             if not weekday_inferred:
                 m = re.search(r"[週星期]\s*([一二三四五六日])", date_str)
+                if m:
+                    weekday_inferred = m.group(1)
+            if not weekday_inferred:
+                # (三) 這種括號標注
+                m = re.search(r"[(\(]\s*([一二三四五六日])\s*[)\)]", date_str)
                 if m:
                     weekday_inferred = m.group(1)
             weekday = weekday_inferred or date_str or None
@@ -247,26 +393,39 @@ def parse_html_course_table(html: str) -> list[dict]:
                 "end_time": end_time,
                 "teacher": teacher,
                 "location": loc or None,
-                "cost_note": None,
+                "cost_note": cost_note,
                 "category": _infer_category(title),
                 "target_audience": None,
-                "remarks": f"日期:{date_str}" if date_str else None,
+                "remarks": (f"日期:{date_str}" if date_str else None),
                 "_location_extras": [],
+                "_extra_sessions": [],
             }
+            if remarks_cell and remarks_cell not in ("無", "-", "—"):
+                existing = current.get("remarks") or ""
+                current["remarks"] = existing + (" | " if existing else "") + remarks_cell
+        elif current and len(row) == 2 and row[0].strip() and row[1].strip():
+            # 2-cell 續列 → 同一堂課的下一場次:第 1 格=日期時間,第 2 格=地點
+            sess_date = row[0].strip()
+            sess_loc = row[1].strip()
+            current["_extra_sessions"].append(f"{sess_date} @ {sess_loc}")
         elif current and len(row) == 1 and row[0].strip():
-            cell = row[0].strip()
+            cell_text = row[0].strip()
             # 1-cell 接續列 → 地點/地址補充;但過濾掉尾段聯絡資訊
-            if not re.search(r"連絡電話|聯絡電話|連絡人|聯絡人|理事長|主任|校長", cell):
-                current["_location_extras"].append(cell)
+            if not re.search(r"連絡電話|聯絡電話|連絡人|聯絡人|理事長|主任|校長", cell_text):
+                current["_location_extras"].append(cell_text)
 
     if current:
         courses.append(current)
 
-    # 把 location_extras 合併進 location,並把第一筆的 remarks 補上中心電話
+    # 把 location_extras / extra_sessions 合併,並把第一筆的 remarks 補上中心電話
     for i, c in enumerate(courses):
         extras = c.pop("_location_extras", [])
         if extras:
             c["location"] = " / ".join(filter(None, [c["location"]] + extras))
+        sessions = c.pop("_extra_sessions", [])
+        if sessions:
+            extra = "其他場次: " + "; ".join(sessions)
+            c["remarks"] = (c.get("remarks") + " | " if c.get("remarks") else "") + extra
         if i == 0 and phone:
             prefix = f"中心電話:{phone}"
             c["remarks"] = prefix + (" | " + c["remarks"] if c.get("remarks") else "")
@@ -549,6 +708,14 @@ def process_one(
         # 有附件但我們只想跑 HTML 模式 → 保留 parent 給之後 Gemini 路徑處理
         return "skipped_has_attachment", 0
     if not found:
+        # 先檢查是不是「本月未辦理」公告 — 這類對 UX 沒價值,直接刪除
+        no_class = detect_no_class_announcement(html)
+        if no_class:
+            if dry_run:
+                print(f"  [dry-no-class] 命中『{no_class}』 → 會刪 parent {parent.id}")
+                return "no_class", 0
+            supa.delete_id(parent.id)
+            return "no_class", 0
         # 沒有 PDF/圖片附件 → 嘗試直接解析頁面內的 HTML <table> 課表
         courses = parse_html_course_table(html)
         if courses:
