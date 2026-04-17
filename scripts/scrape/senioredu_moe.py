@@ -19,6 +19,8 @@ https://moe.senioredu.moe.gov.tw/
   # 抓取後直接寫入 Supabase
   SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... python3 scripts/scrape/senioredu_moe.py --upsert
 """
+from __future__ import annotations
+
 import argparse
 import html as html_lib
 import json
