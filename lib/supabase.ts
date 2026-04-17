@@ -117,12 +117,14 @@ export function groupKey(a: Pick<Activity, 'title' | 'location_name' | 'organize
   ].join('|');
 }
 
-// 排序比較:沒日期的排最後;有日期的按 start_date → start_time 升冪
+// 排序比較:沒日期的排最後;有日期的按 start_date → start_time 升冪。
+// 兩邊都沒日期時仍要比 start_time(PDF 解析來的 recurring 多屬此類)。
 function compareByStart(a: Activity, b: Activity): number {
-  if (!a.start_date && !b.start_date) return 0;
-  if (!a.start_date) return 1;
-  if (!b.start_date) return -1;
-  if (a.start_date !== b.start_date) return a.start_date < b.start_date ? -1 : 1;
+  if (!a.start_date && b.start_date) return 1;
+  if (a.start_date && !b.start_date) return -1;
+  if (a.start_date && b.start_date && a.start_date !== b.start_date) {
+    return a.start_date < b.start_date ? -1 : 1;
+  }
   const at = a.start_time || '';
   const bt = b.start_time || '';
   if (at === bt) return 0;

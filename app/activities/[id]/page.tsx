@@ -51,13 +51,18 @@ export default async function ActivityDetailPage({
   if (!activity) notFound();
 
   const allSessions = await getSessionsInGroup(activity);
-  // 排序:有日期的按日期升冪,沒日期的排最後
+  // 排序:有日期優先,然後按 start_date + start_time 升冪。
+  // 兩邊都沒日期時仍要比 start_time。
   allSessions.sort((a, b) => {
-    if (!a.start_date && !b.start_date) return 0;
-    if (!a.start_date) return 1;
-    if (!b.start_date) return -1;
-    if (a.start_date !== b.start_date) return a.start_date < b.start_date ? -1 : 1;
-    return (a.start_time || '') < (b.start_time || '') ? -1 : 1;
+    if (!a.start_date && b.start_date) return 1;
+    if (a.start_date && !b.start_date) return -1;
+    if (a.start_date && b.start_date && a.start_date !== b.start_date) {
+      return a.start_date < b.start_date ? -1 : 1;
+    }
+    const at = a.start_time || '';
+    const bt = b.start_time || '';
+    if (at === bt) return 0;
+    return at < bt ? -1 : 1;
   });
   const hasMultipleSessions = allSessions.length > 1;
 
