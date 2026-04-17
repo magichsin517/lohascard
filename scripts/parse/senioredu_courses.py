@@ -687,6 +687,17 @@ def course_to_row(course: dict, parent: Activity) -> dict | None:
 
 # ===== 主流程 =====
 
+# 這幾個 tag 代表「parser 處理後的狀態」— 它們互斥,任一時刻 parent 最多有一個。
+# 狀態轉換時要把舊的那個清掉,不然會 double-tag(舊 bug)。
+_STATE_TAGS = {"無課表附件", "解析失敗", "解析0堂", "課表已解析"}
+
+
+def _with_state_tag(existing_tags: list[str] | None, new_state: str | None) -> list[str]:
+    """把舊的 state tag 拿掉,套上新的 state tag(若 new_state=None 就只剝舊的)。"""
+    kept = [t for t in (existing_tags or []) if t not in _STATE_TAGS]
+    return kept + ([new_state] if new_state else [])
+
+
 def process_one(
     parent: Activity,
     supa: Supa,
@@ -696,7 +707,11 @@ def process_one(
     html_only: bool = False,
 ) -> tuple[str, int]:
     """回傳 (狀態, 插入數)。狀態:ok/no_attachment/parse_failed/http_failed/docx_failed
-    html_only=True 時,遇到有附件的 parent 直接 skip(不動 tag),只跑 HTML table path。"""
+    html_only=True 時,遇到有附件的 parent 直接 skip(不動 tag),只跑 HTML table path。
+
+    重要:本函式對 parent.tags 的修改是 atomic 的 — 無論 parent 原本帶哪個 state tag
+    (無課表附件/解析失敗/解析0堂),處理完之後 state tag 會被正確換成新的結果;
+    若中途失敗(例如 HTTP timeout),不會把原本的 state tag 拿掉。"""
     try:
         html = fetch_text(parent.source_url, timeout=30)
     except Exception as e:
@@ -727,12 +742,9 @@ def process_one(
                 supa.insert_many(rows)
                 supa.delete_id(parent.id)
                 return "ok_html", len(rows)
-        # 真的沒東西能解析,標記 tag
-        new_tags = list(parent.tags)
-        if "無課表附件" not in new_tags:
-            new_tags.append("無課表附件")
+        # 真的沒東西能解析,標記 tag(atomic:clear 舊 state + set 新 state)
         if not dry_run:
-            supa.patch_id(parent.id, {"tags": new_tags})
+            supa.patch_id(parent.id, {"tags": _with_state_tag(parent.tags, "無課表附件")})
         return "no_attachment", 0
 
     attach_url, ext = found
@@ -756,20 +768,19 @@ def process_one(
         except Exception as e:
             print(f"  [office-convert] {e}")
             if not dry_run:
-                supa.patch_id(parent.id, {"tags": list(parent.tags) + ["解析失敗"]})
+                supa.patch_id(parent.id, {"tags": _with_state_tag(parent.tags, "解析失敗")})
             return "office_failed", 0
     else:
         if not dry_run:
-            supa.patch_id(parent.id, {"tags": list(parent.tags) + ["解析失敗"]})
+            supa.patch_id(parent.id, {"tags": _with_state_tag(parent.tags, "解析失敗")})
         return "unsupported_ext", 0
 
     try:
         courses = gemini_parse(data, mime, api_key)
     except Exception as e:
         print(f"  [gemini] {e}")
-        new_tags = list(parent.tags) + ["解析失敗"]
         if not dry_run:
-            supa.patch_id(parent.id, {"tags": new_tags})
+            supa.patch_id(parent.id, {"tags": _with_state_tag(parent.tags, "解析失敗")})
         return "parse_failed", 0
 
     rows = []
@@ -778,9 +789,8 @@ def process_one(
         if row:
             rows.append(row)
     if not rows:
-        new_tags = list(parent.tags) + ["解析0堂"]
         if not dry_run:
-            supa.patch_id(parent.id, {"tags": new_tags})
+            supa.patch_id(parent.id, {"tags": _with_state_tag(parent.tags, "解析0堂")})
         return "parse_empty", 0
 
     if dry_run:
@@ -837,12 +847,10 @@ def main() -> int:
     retry_tag = "無課表附件" if args.retry_no_attachment else None
     parents = supa.list_parents(limit=limit, ids=ids, retry_tag=retry_tag)
 
-    # retry 模式:把『無課表附件』tag 先拿掉,才能讓 process_one 正常處理
-    if args.retry_no_attachment and not args.dry_run:
-        for p in parents:
-            cleaned = [t for t in p.tags if t != "無課表附件"]
-            p.tags = cleaned
-            supa.patch_id(p.id, {"tags": cleaned})
+    # ATOMIC 設計:不再事先把『無課表附件』tag 全部剝掉。
+    # process_one 在每筆成功處理後會用 _with_state_tag() 把舊的 state tag 換成新的,
+    # 失敗(HTTP timeout 等)則完全不動 tag。這樣即使中途 cancel,未處理的 parent
+    # 仍保有『無課表附件』tag,下次 --retry-no-attachment 還能找到、不會變 orphan。
     print(f"=== 將處理 {len(parents)} 筆月課表(workers={args.workers}) ===", flush=True)
 
     stats: dict[str, int] = {}
