@@ -32,63 +32,60 @@ async function getActivityGroups(
   //   - 完全沒日期的活動(爬來的月度課表)暫時保留顯示 — 等 PDF 解析後補日期再加嚴
   const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD (UTC)
 
-  // 注意:這裡不再做 DB 分頁。必須先把符合條件的全部撈回來、分組後才能正確分頁。
-  let query = supabase
-    .from('activities')
-    .select('*')
-    .eq('status', 'active')
-    // 不顯示這些雜訊 tag 的 parent 活動
-    .not('tags', 'cs', '{"無課表附件"}')
-    .not('tags', 'cs', '{"解析失敗"}')
-    .not('tags', 'cs', '{"解析0堂"}')
-    // recurring 一律保留,single 活動則看日期
-    .or(
-      `event_type.eq.recurring,` +
-      `end_date.gte.${today},` +
-      `and(end_date.is.null,start_date.gte.${today}),` +
-      `and(end_date.is.null,start_date.is.null)`
-    )
-    .order('start_date', { ascending: true, nullsFirst: false })
-    .order('id', { ascending: true })
-    .limit(GROUPING_FETCH_CAP);
+  // 每次 fetch 都要一份新的 query builder(Supabase builder 是 mutable 的)
+  const buildQuery = () => {
+    let q2 = supabase
+      .from('activities')
+      .select('*')
+      .eq('status', 'active')
+      // 不顯示這些雜訊 tag 的 parent 活動
+      .not('tags', 'cs', '{"無課表附件"}')
+      .not('tags', 'cs', '{"解析失敗"}')
+      .not('tags', 'cs', '{"解析0堂"}')
+      // recurring 一律保留,single 活動則看日期
+      .or(
+        `event_type.eq.recurring,` +
+        `end_date.gte.${today},` +
+        `and(end_date.is.null,start_date.gte.${today}),` +
+        `and(end_date.is.null,start_date.is.null)`
+      )
+      .order('start_date', { ascending: true, nullsFirst: false })
+      .order('id', { ascending: true });
 
-  if (category && category !== 'all') {
-    query = query.eq('category', category);
-  }
-  if (district) {
-    query = query.eq('district', district);
-  }
-  if (city) {
-    query = query.eq('city', city);
-  }
-  if (pricing && pricing !== 'all') {
-    // tags 為 text[],用 contains 找包含該價格 tag 的活動
-    query = query.contains('tags', [pricing]);
-  }
-  // 資料類型篩選(避免課程跟社區據點混在一起)
-  //  - 'course' (預設):排除社區據點
-  //  - 'point':只顯示社區據點
-  //  - 'all':全部
-  if (!source || source === 'course') {
-    query = query.not('tags', 'cs', '{"樂齡據點"}');
-  } else if (source === 'point') {
-    query = query.contains('tags', ['樂齡據點']);
-  }
-  // source === 'all' 時不加過濾
-  if (q && q.trim()) {
-    // 關鍵字:標題 / 摘要 / 主辦單位 其中一項包含即可
-    const kw = q.trim().replace(/[%,]/g, ''); // PostgREST ilike 裡逗號會被當分隔符,先清掉
-    const pattern = `*${kw}*`;
-    query = query.or(`title.ilike.${pattern},summary.ilike.${pattern},organizer_name.ilike.${pattern}`);
-  }
+    if (category && category !== 'all') q2 = q2.eq('category', category);
+    if (district) q2 = q2.eq('district', district);
+    if (city) q2 = q2.eq('city', city);
+    if (pricing && pricing !== 'all') q2 = q2.contains('tags', [pricing]);
+    // 資料類型(課程 / 據點 / 全部)
+    if (!source || source === 'course') {
+      q2 = q2.not('tags', 'cs', '{"樂齡據點"}');
+    } else if (source === 'point') {
+      q2 = q2.contains('tags', ['樂齡據點']);
+    }
+    if (q && q.trim()) {
+      const kw = q.trim().replace(/[%,]/g, '');
+      const pattern = `*${kw}*`;
+      q2 = q2.or(`title.ilike.${pattern},summary.ilike.${pattern},organizer_name.ilike.${pattern}`);
+    }
+    return q2;
+  };
 
-  const { data, error } = await query;
-  if (error) {
-    console.error('[getActivityGroups]', error);
-    return { groups: [], total: 0 };
+  // Supabase PostgREST 預設 max-rows = 1000,要用 .range() 分批才能撈超過 1000 筆。
+  const CHUNK = 1000;
+  const allRows: Activity[] = [];
+  for (let offset = 0; offset < GROUPING_FETCH_CAP; offset += CHUNK) {
+    const end = Math.min(offset + CHUNK - 1, GROUPING_FETCH_CAP - 1);
+    const { data, error } = await buildQuery().range(offset, end);
+    if (error) {
+      console.error('[getActivityGroups] range', offset, error);
+      break;
+    }
+    const rows = (data as Activity[]) || [];
+    allRows.push(...rows);
+    if (rows.length < CHUNK) break; // 已抓完
   }
 
-  const allGroups = groupActivities((data as Activity[]) || []);
+  const allGroups = groupActivities(allRows);
   const total = allGroups.length;
 
   // 分頁在 TS 這邊做
