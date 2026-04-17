@@ -4,6 +4,7 @@ import ActivityCard from '@/components/ActivityCard';
 import CategoryFilter from '@/components/CategoryFilter';
 import DistrictFilter from '@/components/DistrictFilter';
 import PricingFilter from '@/components/PricingFilter';
+import SourceFilter from '@/components/SourceFilter';
 import Pagination from '@/components/Pagination';
 import SearchBox from '@/components/SearchBox';
 import LineCallout from '@/components/LineCallout';
@@ -12,14 +13,15 @@ export const revalidate = 60; // 每分鐘重新驗證一次
 
 const PAGE_SIZE = 30;
 // 撈出來先分組再分頁,避免同一活動的不同時段落在不同頁。
-// 用一個上限保護,超過就截斷(現階段資料量 ~1000,3000 綽綽有餘)。
-const GROUPING_FETCH_CAP = 3000;
+// 用一個上限保護,超過就截斷(2026-04 加入衛福部 5800+ 據點後拉高)。
+const GROUPING_FETCH_CAP = 12000;
 
 async function getActivityGroups(
   category: string | undefined,
   district: string | undefined,
   city: string | undefined,
   pricing: string | undefined,
+  source: string | undefined,
   q: string | undefined,
   page: number
 ): Promise<{ groups: ActivityGroup[]; total: number }> {
@@ -63,6 +65,16 @@ async function getActivityGroups(
     // tags 為 text[],用 contains 找包含該價格 tag 的活動
     query = query.contains('tags', [pricing]);
   }
+  // 資料類型篩選(避免課程跟社區據點混在一起)
+  //  - 'course' (預設):排除社區據點
+  //  - 'point':只顯示社區據點
+  //  - 'all':全部
+  if (!source || source === 'course') {
+    query = query.not('tags', 'cs', '{"樂齡據點"}');
+  } else if (source === 'point') {
+    query = query.contains('tags', ['樂齡據點']);
+  }
+  // source === 'all' 時不加過濾
   if (q && q.trim()) {
     // 關鍵字:標題 / 摘要 / 主辦單位 其中一項包含即可
     const kw = q.trim().replace(/[%,]/g, ''); // PostgREST ilike 裡逗號會被當分隔符,先清掉
@@ -89,7 +101,7 @@ async function getActivityGroups(
 export default async function HomePage({
   searchParams,
 }: {
-  searchParams: Promise<{ category?: string; district?: string; city?: string; pricing?: string; q?: string; page?: string }>;
+  searchParams: Promise<{ category?: string; district?: string; city?: string; pricing?: string; source?: string; q?: string; page?: string }>;
 }) {
   const params = await searchParams;
   const page = Math.max(1, parseInt(params.page || '1', 10) || 1);
@@ -98,6 +110,7 @@ export default async function HomePage({
     params.district,
     params.city,
     params.pricing,
+    params.source,
     params.q,
     page
   );
@@ -126,6 +139,7 @@ export default async function HomePage({
         {/* 篩選區 */}
         <section className="py-8 md:py-10 space-y-5">
           <SearchBox />
+          <SourceFilter />
           <CategoryFilter />
           <PricingFilter />
           <DistrictFilter />

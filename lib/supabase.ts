@@ -77,8 +77,13 @@ export function pricingTierOf(activity: Pick<Activity, 'tags' | 'cost'>): Pricin
 
 // 格式化日期/時間的小工具
 export function formatEventTime(activity: Activity): string {
+  const startT = activity.start_time?.substring(0, 5) || '';
+  const endT = activity.end_time?.substring(0, 5) || '';
+  const timeRange = startT && endT ? `${startT}-${endT}` : startT || endT || '';
+
   if (activity.event_type === 'recurring') {
-    return `${activity.recurring_rule || ''} ${activity.start_time?.substring(0, 5) || ''}-${activity.end_time?.substring(0, 5) || ''}`;
+    const rule = activity.recurring_rule || '';
+    return [rule, timeRange].filter(Boolean).join(' ').trim();
   }
   if (activity.start_date) {
     const date = new Date(activity.start_date);
@@ -86,7 +91,8 @@ export function formatEventTime(activity: Activity): string {
     const day = date.getDate();
     const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
     const weekday = weekdays[date.getDay()];
-    return `${month}/${day} (${weekday}) ${activity.start_time?.substring(0, 5) || ''}-${activity.end_time?.substring(0, 5) || ''}`;
+    const datePart = `${month}/${day} (${weekday})`;
+    return [datePart, timeRange].filter(Boolean).join(' ').trim();
   }
   return '';
 }
