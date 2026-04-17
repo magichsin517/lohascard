@@ -5,6 +5,7 @@ import CategoryFilter from '@/components/CategoryFilter';
 import DistrictFilter from '@/components/DistrictFilter';
 import PricingFilter from '@/components/PricingFilter';
 import Pagination from '@/components/Pagination';
+import SearchBox from '@/components/SearchBox';
 import LineCallout from '@/components/LineCallout';
 
 export const revalidate = 60; // 每分鐘重新驗證一次
@@ -16,6 +17,7 @@ async function getActivities(
   district: string | undefined,
   city: string | undefined,
   pricing: string | undefined,
+  q: string | undefined,
   page: number
 ): Promise<{ rows: Activity[]; total: number }> {
   // 過濾過期:
@@ -60,6 +62,12 @@ async function getActivities(
     // tags 為 text[],用 contains 找包含該價格 tag 的活動
     query = query.contains('tags', [pricing]);
   }
+  if (q && q.trim()) {
+    // 關鍵字:標題 / 摘要 / 主辦單位 其中一項包含即可
+    const kw = q.trim().replace(/[%,]/g, ''); // PostgREST ilike 裡逗號會被當分隔符,先清掉
+    const pattern = `*${kw}*`;
+    query = query.or(`title.ilike.${pattern},summary.ilike.${pattern},organizer_name.ilike.${pattern}`);
+  }
 
   const { data, error, count } = await query;
   if (error) {
@@ -72,7 +80,7 @@ async function getActivities(
 export default async function HomePage({
   searchParams,
 }: {
-  searchParams: Promise<{ category?: string; district?: string; city?: string; pricing?: string; page?: string }>;
+  searchParams: Promise<{ category?: string; district?: string; city?: string; pricing?: string; q?: string; page?: string }>;
 }) {
   const params = await searchParams;
   const page = Math.max(1, parseInt(params.page || '1', 10) || 1);
@@ -81,6 +89,7 @@ export default async function HomePage({
     params.district,
     params.city,
     params.pricing,
+    params.q,
     page
   );
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -93,20 +102,21 @@ export default async function HomePage({
         {/* Hero 區塊 */}
         <section className="py-14 md:py-20 border-b border-black/5">
           <p className="text-[11px] tracking-[0.25em] text-ink-faded uppercase mb-5">
-            For 60+ · Taiwan
+            For 55+ · Taiwan
           </p>
           <h1 className="font-display text-[36px] md:text-[52px] leading-[1.2] text-ink max-w-3xl mb-5">
-            退休後的每一天,<br />
+            樂齡的每一天,<br />
             都值得好好過。
           </h1>
           <p className="text-ink-muted text-[16px] md:text-[17px] max-w-xl leading-relaxed">
-            我們幫你從全台里長、樂齡中心、社區關懷據點、老人服務中心的活動裡,挑出最值得參加的那些。
+            我們幫你從全台樂齡學習中心、社區關懷據點、里長、老人服務中心的活動裡,挑出最值得參加的那些。
             免費或小額,在你家附近,說走就走。
           </p>
         </section>
 
         {/* 篩選區 */}
         <section className="py-8 md:py-10 space-y-5">
+          <SearchBox />
           <CategoryFilter />
           <PricingFilter />
           <DistrictFilter />
@@ -116,6 +126,7 @@ export default async function HomePage({
         <section className="pb-8">
           <div className="flex items-baseline justify-between mb-6">
             <p className="text-[13px] text-ink-faded">
+              {params.q ? `搜尋「${params.q}」· ` : ''}
               {params.city ? `${params.city} · ` : ''}
               {params.district ? `${params.district} · ` : ''}
               共 {total} 個活動{totalPages > 1 ? `(第 ${page}/${totalPages} 頁)` : ''}
@@ -141,7 +152,7 @@ export default async function HomePage({
         <footer className="border-t border-black/5 py-10 text-center">
           <p className="font-display text-lg text-ink mb-2">樂活卡卡</p>
           <p className="text-[12px] text-ink-faded">
-            Lohas Card · 為台灣銀髮族聚合好活動
+            Lohas Card · 為台灣樂齡族聚合好活動
           </p>
           <p className="text-[11px] text-ink-faded mt-4">
             資料來源:教育部樂齡學習網、衛生福利部社區照顧關懷據點、各縣市政府、各合作單位
