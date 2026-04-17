@@ -1,0 +1,75 @@
+name: 解析月課表 → 單堂課
+
+# 這個 workflow 只能手動觸發 (workflow_dispatch)
+# - 模式「html_retry」:重跑已被標『無課表附件』的 parent,用 HTML table fallback 救出單堂課
+#   (不需要 Gemini,零 token 成本)
+# - 模式「pdf_new」:跑 PDF/圖片解析(需要 GEMINI_API_KEY)
+#   GH Actions 美國機房連台灣 gov 會慢,首次跑可能要 8-12 分鐘
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: '解析模式'
+        required: true
+        default: 'html_retry'
+        type: choice
+        options:
+          - html_retry
+          - pdf_new
+      limit:
+        description: '最多處理幾筆(all 代表全部)'
+        required: false
+        default: 'all'
+        type: string
+      workers:
+        description: '並行 worker 數'
+        required: false
+        default: '4'
+        type: string
+
+jobs:
+  parse:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install libreoffice (for .docx → PDF)
+        if: ${{ inputs.mode == 'pdf_new' }}
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libreoffice
+
+      - name: Run parser (HTML retry mode)
+        if: ${{ inputs.mode == 'html_retry' }}
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          ARGS=(--retry-no-attachment --workers ${{ inputs.workers }})
+          if [ "${{ inputs.limit }}" = "all" ]; then
+            ARGS+=(--all)
+          else
+            ARGS+=(--limit ${{ inputs.limit }})
+          fi
+          python3 scripts/parse/senioredu_courses.py "${ARGS[@]}"
+
+      - name: Run parser (PDF new mode)
+        if: ${{ inputs.mode == 'pdf_new' }}
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          ARGS=(--workers ${{ inputs.workers }})
+          if [ "${{ inputs.limit }}" = "all" ]; then
+            ARGS+=(--all)
+          else
+            ARGS+=(--limit ${{ inputs.limit }})
+          fi
+          python3 scripts/parse/senioredu_courses.py "${ARGS[@]}"

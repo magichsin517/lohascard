@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import html as html_lib
 import json
 import os
 import re
@@ -33,6 +34,7 @@ import time
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
+from datetime import date as date_cls
 
 # ===== 設定 =====
 BASE = "https://moe.senioredu.moe.gov.tw"
@@ -83,6 +85,195 @@ def fetch_text(url: str, **kw) -> str:
     return raw.decode("utf-8", errors="replace")
 
 
+# ===== HTML table 解析(零 token 成本的 fallback) =====
+# 處理教育部樂齡網那種「沒上傳附件、課表直接貼成 HTML <table>」的公告。
+# 表頭例:項次 | 活動名稱 | 日期 | 上課時間 | 地點 | 講師簡介
+
+_TABLE_RE = re.compile(r"<table\b[^>]*>(.*?)</table>", re.DOTALL | re.IGNORECASE)
+_TR_RE = re.compile(r"<tr\b[^>]*>(.*?)</tr>", re.DOTALL | re.IGNORECASE)
+_TDH_RE = re.compile(r"<t[dh]\b[^>]*>(.*?)</t[dh]>", re.DOTALL | re.IGNORECASE)
+_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def _clean_cell(raw: str) -> str:
+    text = _TAG_RE.sub(" ", raw)
+    text = html_lib.unescape(text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _extract_tables(html: str) -> list[list[list[str]]]:
+    """把 HTML 裡所有 <table> 抽成 [table][row][cell] 三層結構。"""
+    out: list[list[list[str]]] = []
+    for m in _TABLE_RE.finditer(html):
+        rows: list[list[str]] = []
+        for tr in _TR_RE.finditer(m.group(1)):
+            cells = [_clean_cell(td.group(1)) for td in _TDH_RE.finditer(tr.group(1))]
+            if cells:
+                rows.append(cells)
+        if rows:
+            out.append(rows)
+    return out
+
+
+def _find_course_table(tables: list[list[list[str]]]) -> list[list[str]] | None:
+    """挑出含『項次/活動名稱/日期/上課時間』header 的課表。"""
+    for tbl in tables:
+        for row in tbl[:3]:
+            joined = "".join(row)
+            if "項次" in joined and "活動名稱" in joined and "日期" in joined and "上課時間" in joined:
+                return tbl
+    return None
+
+
+# 日期欄可能的格式:
+#   2026/04/7.14.21.28       → 月內多次上課
+#   4/15                     → 單次
+#   每週三                    → 既有 recurring 寫法
+_DATE_MONTH_DAYS_RE = re.compile(r"(\d{4})[/.\-](\d{1,2})[/.\-]([\d.\s、,，]+)")
+_DATE_MD_RE = re.compile(r"\b(\d{1,2})/(\d{1,2})\b")
+_TIME_RANGE_RE = re.compile(r"(\d{1,2}:\d{2})\s*[~\-－–—～]\s*(\d{1,2}:\d{2})")
+
+_WEEKDAY_CH = "日一二三四五六"  # Monday=1 in isoweekday, 但 Python datetime.weekday():Mon=0
+
+
+def _infer_weekday_from_dates(date_str: str) -> str | None:
+    """從 '2026/04/7.14.21.28' 這種字串推「每週幾」(若全部都是同一個星期幾)。"""
+    m = _DATE_MONTH_DAYS_RE.match(date_str.strip())
+    if not m:
+        return None
+    year, month, day_part = int(m.group(1)), int(m.group(2)), m.group(3)
+    days = re.findall(r"\d{1,2}", day_part)
+    if not days:
+        return None
+    weekdays = set()
+    for d in days:
+        try:
+            dow = date_cls(year, month, int(d)).isoweekday()  # Mon=1..Sun=7
+            weekdays.add(dow)
+        except ValueError:
+            continue
+    if len(weekdays) == 1:
+        # isoweekday 1..7 → 日一二三四五六 index (日=7→'日', 一=1→'一' ...)
+        dow = weekdays.pop()
+        return _WEEKDAY_CH[dow % 7]
+    return None
+
+
+def _parse_time_range(time_str: str) -> tuple[str | None, str | None]:
+    m = _TIME_RANGE_RE.search(time_str.replace("：", ":"))
+    if not m:
+        return None, None
+    return m.group(1), m.group(2)
+
+
+# 以關鍵字推 category。比 Gemini 粗,但足夠作為 fallback。
+_CATEGORY_KEYWORDS: list[tuple[str, tuple[str, ...]]] = [
+    ("sports",   ("太極", "拳", "瑜珈", "瑜伽", "舞", "體操", "健走", "健身", "體適能", "有氧", "桌球", "槌球", "羽球", "氣功", "慢跑", "散步", "登山", "拉丁", "運動", "彈力")),
+    ("health",   ("健康", "養生", "保健", "長照", "血壓", "失智", "中醫", "穴", "按摩", "復健", "營養", "飲食", "照護", "口腔", "預防")),
+    ("culture",  ("音樂", "唱", "合唱", "歌", "京劇", "讀書", "展", "藝術", "文學", "詩", "國樂", "鋼琴", "烏克麗麗", "戲劇", "電影")),
+    ("travel",   ("旅遊", "參訪", "踏青", "郊遊", "走讀", "出遊")),
+    ("social",   ("聯誼", "共餐", "聚會", "交誼", "社交")),
+    ("volunteer", ("志工", "志願")),
+    ("learning", ("書法", "電腦", "手機", "平板", "英語", "英文", "日語", "日文", "韓語", "手工", "烹飪", "料理", "花藝", "插畫", "繪畫", "繪本", "畫", "攝影", "工藝", "捲紙", "煮藝", "紓壓", "色鉛筆", "學習", "課程", "研習")),
+]
+
+
+def _infer_category(title: str) -> str:
+    for cat, keywords in _CATEGORY_KEYWORDS:
+        if any(k in title for k in keywords):
+            return cat
+    return "learning"  # default
+
+
+def _extract_contact_line(html: str) -> tuple[str | None, str | None]:
+    """從頁面內文抓『連絡電話: XXX』和可能的地址。"""
+    text = _TAG_RE.sub(" ", html)
+    text = html_lib.unescape(text)
+    text = re.sub(r"\s+", " ", text)
+
+    phone = None
+    m = re.search(r"連絡電話[::]?\s*([0-9\-()#\s]{6,25})", text)
+    if m:
+        phone = m.group(1).strip()
+
+    return phone, None
+
+
+def parse_html_course_table(html: str) -> list[dict]:
+    """若 detail page 內文有 HTML course table,回傳跟 Gemini 相同格式的 list[dict]。
+    沒抓到回 [] → 外層會走原本「無課表附件」tagging。"""
+    tables = _extract_tables(html)
+    tbl = _find_course_table(tables)
+    if not tbl:
+        return []
+
+    # 找到 header 列的位置
+    header_idx = 0
+    for i, row in enumerate(tbl[:5]):
+        if "項次" in "".join(row):
+            header_idx = i
+            break
+
+    phone, _ = _extract_contact_line(html)
+
+    courses: list[dict] = []
+    current: dict | None = None
+
+    for row in tbl[header_idx + 1:]:
+        # 新的主資料列:>=6 cells 且第一格是數字(項次)
+        if len(row) >= 6 and row[0].strip().isdigit() and row[1].strip():
+            if current:
+                courses.append(current)
+            title = row[1].strip().rstrip("、，,").strip()
+            date_str = row[2].strip()
+            time_str = row[3].strip()
+            loc = row[4].strip()
+            teacher = row[5].strip() or None
+
+            start_time, end_time = _parse_time_range(time_str)
+
+            # 推星期:先試 2026/04/7.14 那種,再試文字「每週三/週三/星期三」,最後 fallback 到原文
+            weekday_inferred = _infer_weekday_from_dates(date_str)
+            if not weekday_inferred:
+                m = re.search(r"[週星期]\s*([一二三四五六日])", date_str)
+                if m:
+                    weekday_inferred = m.group(1)
+            weekday = weekday_inferred or date_str or None
+
+            current = {
+                "title": title,
+                "weekday": weekday,
+                "start_time": start_time,
+                "end_time": end_time,
+                "teacher": teacher,
+                "location": loc or None,
+                "cost_note": None,
+                "category": _infer_category(title),
+                "target_audience": None,
+                "remarks": f"日期:{date_str}" if date_str else None,
+                "_location_extras": [],
+            }
+        elif current and len(row) == 1 and row[0].strip():
+            cell = row[0].strip()
+            # 1-cell 接續列 → 地點/地址補充;但過濾掉尾段聯絡資訊
+            if not re.search(r"連絡電話|聯絡電話|連絡人|聯絡人|理事長|主任|校長", cell):
+                current["_location_extras"].append(cell)
+
+    if current:
+        courses.append(current)
+
+    # 把 location_extras 合併進 location,並把第一筆的 remarks 補上中心電話
+    for i, c in enumerate(courses):
+        extras = c.pop("_location_extras", [])
+        if extras:
+            c["location"] = " / ".join(filter(None, [c["location"]] + extras))
+        if i == 0 and phone:
+            prefix = f"中心電話:{phone}"
+            c["remarks"] = prefix + (" | " + c["remarks"] if c.get("remarks") else "")
+
+    return courses
+
+
 # ===== Supabase REST =====
 
 @dataclass
@@ -114,13 +305,22 @@ class Supa:
         with urllib.request.urlopen(req, timeout=30) as r:
             return r.read()
 
-    def list_parents(self, limit: int | None = None, ids: list[int] | None = None) -> list[Activity]:
-        # 用 source_name 過濾
+    def list_parents(
+        self,
+        limit: int | None = None,
+        ids: list[int] | None = None,
+        retry_tag: str | None = None,
+    ) -> list[Activity]:
+        """列出待處理的 parent 公告。
+        retry_tag='無課表附件' 時,只撈已經被標「無課表附件」的(用於 HTML-table fallback 補救)。"""
         q = "?source_name=eq." + urllib.parse.quote("教育部樂齡學習網")
         q += "&select=id,title,source_url,organizer_name,city,district,tags"
-        # 排除已處理過的 tag — 不論是成功解析、無附件、還是失敗,都不要再重試
-        for skip_tag in ("課表已解析", "無課表附件", "解析失敗", "解析0堂"):
-            q += "&tags=not.cs.{" + urllib.parse.quote(f'"{skip_tag}"') + "}"
+        if retry_tag:
+            q += "&tags=cs.{" + urllib.parse.quote(f'"{retry_tag}"') + "}"
+        else:
+            # 排除已處理過的 tag
+            for skip_tag in ("課表已解析", "無課表附件", "解析失敗", "解析0堂"):
+                q += "&tags=not.cs.{" + urllib.parse.quote(f'"{skip_tag}"') + "}"
         q += "&order=id.asc"
         if ids:
             q += "&id=in.(" + ",".join(str(i) for i in ids) + ")"
@@ -332,8 +532,21 @@ def process_one(parent: Activity, supa: Supa, api_key: str, *, dry_run: bool = F
 
     found = find_attachment(html)
     if not found:
-        # 沒有附件,標記 tag
-        new_tags = list(parent.tags) + ["無課表附件"]
+        # 沒有 PDF/圖片附件 → 嘗試直接解析頁面內的 HTML <table> 課表
+        courses = parse_html_course_table(html)
+        if courses:
+            rows = [r for c in courses for r in [course_to_row(c, parent)] if r]
+            if rows:
+                if dry_run:
+                    print(f"  [dry-html] 會插入 {len(rows)} 筆(HTML table),刪 parent {parent.id}")
+                    return "ok_html", len(rows)
+                supa.insert_many(rows)
+                supa.delete_id(parent.id)
+                return "ok_html", len(rows)
+        # 真的沒東西能解析,標記 tag
+        new_tags = list(parent.tags)
+        if "無課表附件" not in new_tags:
+            new_tags.append("無課表附件")
         if not dry_run:
             supa.patch_id(parent.id, {"tags": new_tags})
         return "no_attachment", 0
@@ -405,13 +618,23 @@ def main() -> int:
     ap.add_argument("--dry-run", action="store_true", help="只看,不寫 DB")
     ap.add_argument("--sleep", type=float, default=0.0, help="每筆之間等幾秒(worker=1 時有用)")
     ap.add_argument("--workers", type=int, default=4, help="並行 worker 數(預設 4)")
+    ap.add_argument(
+        "--retry-no-attachment",
+        action="store_true",
+        help="只重跑已被標成『無課表附件』的 parent(HTML table fallback 新功能補救用)。"
+             "重跑時會先把它們的『無課表附件』tag 拿掉,再嘗試解析。",
+    )
     args = ap.parse_args()
 
     supa_url = os.environ.get("SUPABASE_URL")
     supa_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
-    api_key = os.environ.get("GEMINI_API_KEY")
-    if not (supa_url and supa_key and api_key):
-        print("[error] 缺 SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY / GEMINI_API_KEY", file=sys.stderr)
+    # retry-no-attachment 模式不走 Gemini,不需要 API key
+    api_key = os.environ.get("GEMINI_API_KEY") or ""
+    if not (supa_url and supa_key):
+        print("[error] 缺 SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY", file=sys.stderr)
+        return 2
+    if not args.retry_no_attachment and not api_key:
+        print("[error] 缺 GEMINI_API_KEY(一般模式要用 Gemini 解析 PDF)", file=sys.stderr)
         return 2
 
     supa = Supa(supa_url, supa_key)
@@ -420,7 +643,15 @@ def main() -> int:
     ids = None
     if args.ids:
         ids = [int(x) for x in args.ids.split(",") if x.strip()]
-    parents = supa.list_parents(limit=limit, ids=ids)
+    retry_tag = "無課表附件" if args.retry_no_attachment else None
+    parents = supa.list_parents(limit=limit, ids=ids, retry_tag=retry_tag)
+
+    # retry 模式:把『無課表附件』tag 先拿掉,才能讓 process_one 正常處理
+    if args.retry_no_attachment and not args.dry_run:
+        for p in parents:
+            cleaned = [t for t in p.tags if t != "無課表附件"]
+            p.tags = cleaned
+            supa.patch_id(p.id, {"tags": cleaned})
     print(f"=== 將處理 {len(parents)} 筆月課表(workers={args.workers}) ===", flush=True)
 
     stats: dict[str, int] = {}
