@@ -345,7 +345,7 @@ class Supa:
 # ===== 附件抓取 =====
 
 # detail page HTML 裡的附件樣式
-ATTACH_RE = re.compile(r'(?:href|src)="(/UploadFiles/[^"]+\.(?:pdf|png|jpg|jpeg|gif|docx|doc))"', re.I)
+ATTACH_RE = re.compile(r'(?:href|src)="(/UploadFiles/[^"]+\.(?:pdf|png|jpg|jpeg|gif|docx|doc|xlsx|xls))"', re.I)
 IMAGE_EXTS = {"png", "jpg", "jpeg", "gif"}
 
 def find_attachment(detail_html: str) -> tuple[str, str] | None:
@@ -360,11 +360,17 @@ def find_attachment(detail_html: str) -> tuple[str, str] | None:
 
 
 def docx_to_pdf(docx_bytes: bytes) -> bytes:
-    """Libreoffice headless 轉檔。回傳 PDF bytes。"""
+    """backward-compat wrapper,內部呼叫通用的 office_to_pdf。"""
+    return office_to_pdf(docx_bytes, "docx")
+
+
+def office_to_pdf(raw: bytes, ext: str) -> bytes:
+    """把 Office 系列檔案(docx/doc/xlsx/xls)用 libreoffice headless 轉 PDF。回傳 PDF bytes。"""
+    ext = ext.lower().lstrip(".")
     with tempfile.TemporaryDirectory() as tmp:
-        in_path = os.path.join(tmp, "in.docx")
+        in_path = os.path.join(tmp, f"in.{ext}")
         with open(in_path, "wb") as f:
-            f.write(docx_bytes)
+            f.write(raw)
         subprocess.run(
             ["libreoffice", "--headless", "--convert-to", "pdf", "--outdir", tmp, in_path],
             check=True, capture_output=True, timeout=120,
@@ -522,8 +528,16 @@ def course_to_row(course: dict, parent: Activity) -> dict | None:
 
 # ===== 主流程 =====
 
-def process_one(parent: Activity, supa: Supa, api_key: str, *, dry_run: bool = False) -> tuple[str, int]:
-    """回傳 (狀態, 插入數)。狀態:ok/no_attachment/parse_failed/http_failed/docx_failed"""
+def process_one(
+    parent: Activity,
+    supa: Supa,
+    api_key: str,
+    *,
+    dry_run: bool = False,
+    html_only: bool = False,
+) -> tuple[str, int]:
+    """回傳 (狀態, 插入數)。狀態:ok/no_attachment/parse_failed/http_failed/docx_failed
+    html_only=True 時,遇到有附件的 parent 直接 skip(不動 tag),只跑 HTML table path。"""
     try:
         html = fetch_text(parent.source_url, timeout=30)
     except Exception as e:
@@ -531,6 +545,9 @@ def process_one(parent: Activity, supa: Supa, api_key: str, *, dry_run: bool = F
         return "http_failed", 0
 
     found = find_attachment(html)
+    if html_only and found:
+        # 有附件但我們只想跑 HTML 模式 → 保留 parent 給之後 Gemini 路徑處理
+        return "skipped_has_attachment", 0
     if not found:
         # 沒有 PDF/圖片附件 → 嘗試直接解析頁面內的 HTML <table> 課表
         courses = parse_html_course_table(html)
@@ -564,16 +581,16 @@ def process_one(parent: Activity, supa: Supa, api_key: str, *, dry_run: bool = F
         data = raw
     elif ext == "pdf":
         mime, data = "application/pdf", raw
-    elif ext in ("docx", "doc"):
-        # 先轉 pdf
+    elif ext in ("docx", "doc", "xlsx", "xls"):
+        # Office 檔案都先經 libreoffice 轉成 PDF 再送 Gemini(xlsx 尤其要,因為 Gemini 不吃 spreadsheet)
         try:
-            data = docx_to_pdf(raw)
+            data = office_to_pdf(raw, ext)
             mime = "application/pdf"
         except Exception as e:
-            print(f"  [docx-convert] {e}")
+            print(f"  [office-convert] {e}")
             if not dry_run:
                 supa.patch_id(parent.id, {"tags": list(parent.tags) + ["解析失敗"]})
-            return "docx_failed", 0
+            return "office_failed", 0
     else:
         if not dry_run:
             supa.patch_id(parent.id, {"tags": list(parent.tags) + ["解析失敗"]})
@@ -624,16 +641,23 @@ def main() -> int:
         help="只重跑已被標成『無課表附件』的 parent(HTML table fallback 新功能補救用)。"
              "重跑時會先把它們的『無課表附件』tag 拿掉,再嘗試解析。",
     )
+    ap.add_argument(
+        "--html-only",
+        action="store_true",
+        help="僅走 HTML table path,遇到有附件的 parent 直接 skip(不動 tag)。"
+             "配合 --all 可以一口氣救出『tag 已被剝掉但 Gemini 還沒處理』的中間狀態。"
+             "不需要 GEMINI_API_KEY。",
+    )
     args = ap.parse_args()
 
     supa_url = os.environ.get("SUPABASE_URL")
     supa_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
-    # retry-no-attachment 模式不走 Gemini,不需要 API key
+    # retry-no-attachment / html-only 模式不走 Gemini,不需要 API key
     api_key = os.environ.get("GEMINI_API_KEY") or ""
     if not (supa_url and supa_key):
         print("[error] 缺 SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY", file=sys.stderr)
         return 2
-    if not args.retry_no_attachment and not api_key:
+    if not args.retry_no_attachment and not args.html_only and not api_key:
         print("[error] 缺 GEMINI_API_KEY(一般模式要用 Gemini 解析 PDF)", file=sys.stderr)
         return 2
 
@@ -659,7 +683,7 @@ def main() -> int:
 
     def _work(p: Activity):
         try:
-            status, n = process_one(p, supa, api_key, dry_run=args.dry_run)
+            status, n = process_one(p, supa, api_key, dry_run=args.dry_run, html_only=args.html_only)
             return p, status, n, None
         except Exception as e:
             return p, "exception", 0, str(e)
