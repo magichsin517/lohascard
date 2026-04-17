@@ -18,14 +18,12 @@ async function getActivity(id: string): Promise<Activity | null> {
 }
 
 async function getSessionsInGroup(activity: Activity): Promise<Activity[]> {
-  // recurring 的不用合併
-  if (activity.event_type === 'recurring') return [activity];
   // 用 title + location_name + organizer_name 精確比對同一活動的其他場次
+  // (不過濾 event_type,因為 PDF 解析時有時會誤標)
   let q = supabase
     .from('activities')
     .select('*')
     .eq('status', 'active')
-    .eq('event_type', 'single')
     .eq('title', activity.title);
   q = activity.location_name
     ? q.eq('location_name', activity.location_name)

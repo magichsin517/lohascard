@@ -134,8 +134,9 @@ export function groupActivities(activities: Activity[]): ActivityGroup[] {
   const buckets = new Map<string, Activity[]>();
 
   for (const a of activities) {
-    // recurring 活動本來就是一筆代表多場,不要再合併
-    const key = a.event_type === 'recurring' ? `__recurring__${a.id}` : groupKey(a);
+    // 不管 event_type,同標題+地點+主辦就是同一活動
+    // (PDF 解析時 event_type 有時會誤標成 recurring,所以不以此判斷)
+    const key = groupKey(a);
     const arr = buckets.get(key) || [];
     arr.push(a);
     buckets.set(key, arr);
