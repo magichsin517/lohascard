@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  樂活卡卡 Logo / LINE OA 頭像
+  Size: 640 × 640 (LINE avatar spec)
+  Style: 圓形底 + 樂活兩字 + 小點綴,用品牌色
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="640" height="640">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3a5226"/>
+      <stop offset="1" stop-color="#2e4220"/>
+    </linearGradient>
+    <style>
+      .logo-char { font-family: 'PingFang TC', 'Noto Sans TC', 'Heiti TC', 'Microsoft JhengHei', serif; font-weight: 700; letter-spacing: -8px; }
+      .sub { font-family: 'PingFang TC', 'Noto Sans TC', sans-serif; font-weight: 500; letter-spacing: 24px; }
+    </style>
+  </defs>
+
+  <!-- 圓形底(LINE 顯示時會被裁成圓) -->
+  <rect width="640" height="640" fill="url(#bg)"/>
+
+  <!-- 左上角小太陽點綴(代表樂齡族的早晨感) -->
+  <circle cx="505" cy="135" r="32" fill="#c89447"/>
+  <circle cx="505" cy="135" r="20" fill="#faf4e6"/>
+
+  <!-- 主體:「樂活」兩字,大而置中偏上 -->
+  <text class="logo-char" x="320" y="330" text-anchor="middle" font-size="250" fill="#faf4e6">樂活</text>
+
+  <!-- 副標:卡卡 (字間距拉開,作為 wordmark) -->
+  <text class="sub" x="332" y="460" text-anchor="middle" font-size="52" fill="#c89447">卡卡</text>
+
+  <!-- 底部橫線點綴 -->
+  <line x1="260" y1="510" x2="380" y2="510" stroke="#c89447" stroke-width="4" stroke-linecap="round"/>
+</svg>

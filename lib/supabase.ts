@@ -95,3 +95,62 @@ export function formatCost(activity: Activity): string {
   if (activity.cost === 0) return '免費';
   return `NT$ ${activity.cost.toLocaleString()}`;
 }
+
+// ─── 多場次合併 ──────────────────────────────────────────────
+// 同一活動(title + location_name + organizer_name 完全相同)
+// 可能因為 PDF 解析被拆成多筆 row。前端把他們合併成一組顯示。
+
+export type ActivityGroup = {
+  primary: Activity;       // 代表場次 (最近即將到來的那一場;沒有就用第一筆)
+  sessions: Activity[];    // 所有場次 (含 primary),依時間 ASC 排序
+};
+
+function normalizeKeyPart(s: string | null | undefined): string {
+  return (s || '').trim().replace(/\s+/g, '');
+}
+
+export function groupKey(a: Pick<Activity, 'title' | 'location_name' | 'organizer_name'>): string {
+  return [
+    normalizeKeyPart(a.title),
+    normalizeKeyPart(a.location_name),
+    normalizeKeyPart(a.organizer_name),
+  ].join('|');
+}
+
+// 排序比較:沒日期的排最後;有日期的按 start_date → start_time 升冪
+function compareByStart(a: Activity, b: Activity): number {
+  if (!a.start_date && !b.start_date) return 0;
+  if (!a.start_date) return 1;
+  if (!b.start_date) return -1;
+  if (a.start_date !== b.start_date) return a.start_date < b.start_date ? -1 : 1;
+  const at = a.start_time || '';
+  const bt = b.start_time || '';
+  if (at === bt) return 0;
+  return at < bt ? -1 : 1;
+}
+
+export function groupActivities(activities: Activity[]): ActivityGroup[] {
+  const today = new Date().toISOString().slice(0, 10);
+  const buckets = new Map<string, Activity[]>();
+
+  for (const a of activities) {
+    // recurring 活動本來就是一筆代表多場,不要再合併
+    const key = a.event_type === 'recurring' ? `__recurring__${a.id}` : groupKey(a);
+    const arr = buckets.get(key) || [];
+    arr.push(a);
+    buckets.set(key, arr);
+  }
+
+  const groups: ActivityGroup[] = [];
+  for (const sessions of buckets.values()) {
+    const sorted = [...sessions].sort(compareByStart);
+    // primary = 最近即將到來 (start_date >= today);都過期就用第一個
+    const upcoming = sorted.find((s) => !s.start_date || s.start_date >= today);
+    const primary = upcoming || sorted[0];
+    groups.push({ primary, sessions: sorted });
+  }
+
+  // 群組之間再按 primary 的開始時間排序,維持原本 UI 的「最近的在前」
+  groups.sort((g1, g2) => compareByStart(g1.primary, g2.primary));
+  return groups;
+}

@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>樂活卡卡 LINE Rich Menu 預覽</title>
+  <style>
+    body { font-family: 'PingFang TC', 'Noto Sans TC', system-ui, sans-serif; background: #f5f3ec; margin: 0; padding: 40px; color: #1a1a1a; }
+    h1 { font-size: 24px; margin-bottom: 8px; }
+    p.lead { color: #6b6b6b; margin-bottom: 32px; }
+    .preview { background: white; padding: 24px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); max-width: 1250px; margin: 0 auto 40px; }
+    .preview img, .preview svg { width: 100%; height: auto; display: block; border-radius: 8px; border: 1px solid rgba(0,0,0,0.06); }
+    table { width: 100%; max-width: 1250px; margin: 0 auto; border-collapse: collapse; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.06); }
+    th, td { padding: 14px 18px; text-align: left; border-bottom: 1px solid #f5f3ec; font-size: 14px; }
+    th { background: #fdfcf8; color: #6b6b6b; font-weight: 600; font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; }
+    td.cell-name { font-weight: 600; }
+    td code { background: #f5f3ec; padding: 3px 8px; border-radius: 4px; font-size: 13px; }
+    .note { max-width: 1250px; margin: 32px auto 0; padding: 20px 24px; background: #eef4f8; border-left: 4px solid #4a7a9a; border-radius: 8px; font-size: 14px; line-height: 1.7; color: #2f5775; }
+    .note strong { color: #2f5775; }
+  </style>
+</head>
+<body>
+  <h1>樂活卡卡 LINE Rich Menu — 預覽 & 區塊對應表</h1>
+  <p class="lead">圖檔大小 2500 × 1686 px(LINE 大型 rich menu 規範)。上傳時用對應的觸碰區塊座標。</p>
+
+  <div class="preview">
+    <object data="richmenu.svg" type="image/svg+xml" style="width:100%;height:auto;display:block;"></object>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:80px">格子</th>
+        <th>標題</th>
+        <th>觸碰區塊 (x, y, w, h)</th>
+        <th>點擊後連結</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>①</td>
+        <td class="cell-name">最新活動</td>
+        <td><code>0, 0, 833, 843</code></td>
+        <td><code>https://lohascard.vercel.app/?utm_source=line&utm_medium=richmenu&utm_campaign=latest</code></td>
+      </tr>
+      <tr>
+        <td>②</td>
+        <td class="cell-name">免費好康</td>
+        <td><code>833, 0, 834, 843</code></td>
+        <td><code>https://lohascard.vercel.app/?pricing=免費&utm_source=line&utm_medium=richmenu&utm_campaign=free</code></td>
+      </tr>
+      <tr>
+        <td>③</td>
+        <td class="cell-name">學習課程</td>
+        <td><code>1667, 0, 833, 843</code></td>
+        <td><code>https://lohascard.vercel.app/?category=learning&utm_source=line&utm_medium=richmenu&utm_campaign=learn</code></td>
+      </tr>
+      <tr>
+        <td>④</td>
+        <td class="cell-name">健康養生</td>
+        <td><code>0, 843, 833, 843</code></td>
+        <td><code>https://lohascard.vercel.app/?category=health&utm_source=line&utm_medium=richmenu&utm_campaign=health</code></td>
+      </tr>
+      <tr>
+        <td>⑤</td>
+        <td class="cell-name">運動戶外</td>
+        <td><code>833, 843, 834, 843</code></td>
+        <td><code>https://lohascard.vercel.app/?category=sports&utm_source=line&utm_medium=richmenu&utm_campaign=sports</code></td>
+      </tr>
+      <tr>
+        <td>⑥</td>
+        <td class="cell-name">文娛旅遊</td>
+        <td><code>1667, 843, 833, 843</code></td>
+        <td><code>https://lohascard.vercel.app/?category=culture&utm_source=line&utm_medium=richmenu&utm_campaign=culture</code></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    <strong>上傳到 LINE Official Account Manager 的步驟:</strong><br>
+    1. 進到 <a href="https://manager.line.biz/" target="_blank">manager.line.biz</a> → 選取你的帳號 → 側欄「主頁」→「圖文選單」→ 建立新項目<br>
+    2. 顯示設定:選「大型」版面(2500 × 1686)<br>
+    3. 在範本中選「六等分」<br>
+    4. 上傳圖片:richmenu.png(SVG 要先轉 PNG,用瀏覽器開 richmenu.svg → 右鍵存成圖片,或用 Mac 內建 Preview 匯出)<br>
+    5. 每一格的動作設「連結」,URL 用上方表格的對應連結<br>
+    6. 每一格的動作標籤(統計用)按標題命名,例如「最新活動」<br>
+    7. 預覽沒問題 → 儲存 → 選「顯示」→ 套用到帳號
+  </div>
+</body>
+</html>

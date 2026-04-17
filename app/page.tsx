@@ -1,4 +1,4 @@
-import { supabase, Activity } from '@/lib/supabase';
+import { supabase, Activity, ActivityGroup, groupActivities } from '@/lib/supabase';
 import Header from '@/components/Header';
 import ActivityCard from '@/components/ActivityCard';
 import CategoryFilter from '@/components/CategoryFilter';
@@ -11,15 +11,18 @@ import LineCallout from '@/components/LineCallout';
 export const revalidate = 60; // 每分鐘重新驗證一次
 
 const PAGE_SIZE = 30;
+// 撈出來先分組再分頁,避免同一活動的不同時段落在不同頁。
+// 用一個上限保護,超過就截斷(現階段資料量 ~1000,3000 綽綽有餘)。
+const GROUPING_FETCH_CAP = 3000;
 
-async function getActivities(
+async function getActivityGroups(
   category: string | undefined,
   district: string | undefined,
   city: string | undefined,
   pricing: string | undefined,
   q: string | undefined,
   page: number
-): Promise<{ rows: Activity[]; total: number }> {
+): Promise<{ groups: ActivityGroup[]; total: number }> {
   // 過濾過期:
   //   - recurring 活動永遠顯示(沒有終止日)
   //   - single 活動若有 end_date,必須 end_date >= 今天
@@ -27,12 +30,10 @@ async function getActivities(
   //   - 完全沒日期的活動(爬來的月度課表)暫時保留顯示 — 等 PDF 解析後補日期再加嚴
   const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD (UTC)
 
-  const from = (page - 1) * PAGE_SIZE;
-  const to = from + PAGE_SIZE - 1;
-
+  // 注意:這裡不再做 DB 分頁。必須先把符合條件的全部撈回來、分組後才能正確分頁。
   let query = supabase
     .from('activities')
-    .select('*', { count: 'exact' })
+    .select('*')
     .eq('status', 'active')
     // 不顯示這些雜訊 tag 的 parent 活動
     .not('tags', 'cs', '{"無課表附件"}')
@@ -47,7 +48,7 @@ async function getActivities(
     )
     .order('start_date', { ascending: true, nullsFirst: false })
     .order('id', { ascending: true })
-    .range(from, to);
+    .limit(GROUPING_FETCH_CAP);
 
   if (category && category !== 'all') {
     query = query.eq('category', category);
@@ -69,12 +70,20 @@ async function getActivities(
     query = query.or(`title.ilike.${pattern},summary.ilike.${pattern},organizer_name.ilike.${pattern}`);
   }
 
-  const { data, error, count } = await query;
+  const { data, error } = await query;
   if (error) {
-    console.error('[getActivities]', error);
-    return { rows: [], total: 0 };
+    console.error('[getActivityGroups]', error);
+    return { groups: [], total: 0 };
   }
-  return { rows: (data as Activity[]) || [], total: count ?? 0 };
+
+  const allGroups = groupActivities((data as Activity[]) || []);
+  const total = allGroups.length;
+
+  // 分頁在 TS 這邊做
+  const from = (page - 1) * PAGE_SIZE;
+  const to = from + PAGE_SIZE;
+  const groups = allGroups.slice(from, to);
+  return { groups, total };
 }
 
 export default async function HomePage({
@@ -84,7 +93,7 @@ export default async function HomePage({
 }) {
   const params = await searchParams;
   const page = Math.max(1, parseInt(params.page || '1', 10) || 1);
-  const { rows: activities, total } = await getActivities(
+  const { groups, total } = await getActivityGroups(
     params.category,
     params.district,
     params.city,
@@ -133,13 +142,17 @@ export default async function HomePage({
             </p>
           </div>
 
-          {activities.length === 0 ? (
+          {groups.length === 0 ? (
             <EmptyState />
           ) : (
             <>
               <div className="grid gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-                {activities.map((a) => (
-                  <ActivityCard key={a.id} activity={a} />
+                {groups.map((g) => (
+                  <ActivityCard
+                    key={g.primary.id}
+                    activity={g.primary}
+                    sessionCount={g.sessions.length}
+                  />
                 ))}
               </div>
               <Pagination currentPage={page} totalPages={totalPages} />

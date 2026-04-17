@@ -17,7 +17,7 @@ export default function LineCallout() {
             加入 LINE 官方帳號,我們幫你從幾百個活動裡挑出你那區最好的幾個,每週送到你手上。
           </p>
           <a
-            href="https://line.me"
+            href="https://line.me/R/ti/p/%40388pvphx"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 bg-[#06C755] hover:bg-[#05a847] text-white text-[14px] px-6 py-3 rounded-full transition-colors font-medium"

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  樂活卡卡 Favicon
+  Size: 32 × 32 (Next.js 會自動把這個當 favicon 用)
+  縮小到 16px 也要辨識 → 只留一個「樂」字
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- 圓角底,moss-700 -->
+  <rect width="32" height="32" rx="7" fill="#3a5226"/>
+  <!-- 單字「樂」(paper cream) -->
+  <text x="16" y="24" text-anchor="middle" font-family="'PingFang TC','Heiti TC','Microsoft JhengHei',serif" font-weight="700" font-size="22" fill="#faf4e6">樂</text>
+</svg>

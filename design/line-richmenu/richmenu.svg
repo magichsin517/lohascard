@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  樂活卡卡 LINE Rich Menu (大型版面)
+  Size: 2500 × 1686 px (LINE 規範)
+  Grid: 3 欄 × 2 列,6 格
+  各格尺寸: 約 833 × 843 px
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2500 1686" width="2500" height="1686">
+  <defs>
+    <style>
+      .cell-title { font-family: 'PingFang TC', 'Noto Sans TC', 'Heiti TC', sans-serif; font-weight: 600; font-size: 92px; letter-spacing: 4px; }
+      .cell-sub { font-family: 'PingFang TC', 'Noto Sans TC', 'Heiti TC', sans-serif; font-weight: 400; font-size: 36px; letter-spacing: 8px; text-transform: uppercase; }
+      .brand { font-family: 'PingFang TC', 'Noto Sans TC', 'Heiti TC', sans-serif; font-weight: 700; font-size: 30px; letter-spacing: 6px; }
+      .icon { fill: none; stroke-width: 10; stroke-linecap: round; stroke-linejoin: round; }
+      .divider { stroke: #fdfcf8; stroke-width: 6; }
+    </style>
+  </defs>
+
+  <!-- 底色 -->
+  <rect width="2500" height="1686" fill="#fdfcf8"/>
+
+  <!-- ============ Row 1 ============ -->
+
+  <!-- Cell 1: 最新活動 (sky) -->
+  <g>
+    <rect x="0" y="0" width="833" height="843" fill="#eef4f8"/>
+    <!-- 日曆 icon -->
+    <g transform="translate(416.5, 340)" class="icon" stroke="#2f5775">
+      <rect x="-85" y="-70" width="170" height="140" rx="14"/>
+      <line x1="-55" y1="-95" x2="-55" y2="-55"/>
+      <line x1="55" y1="-95" x2="55" y2="-55"/>
+      <line x1="-85" y1="-20" x2="85" y2="-20"/>
+      <circle cx="-30" cy="25" r="8" fill="#2f5775"/>
+      <circle cx="15" cy="25" r="8" fill="#2f5775"/>
+      <circle cx="60" cy="25" r="8" fill="#2f5775"/>
+    </g>
+    <text class="cell-sub" fill="#4a7a9a" x="416.5" y="520" text-anchor="middle">LATEST</text>
+    <text class="cell-title" fill="#2f5775" x="416.5" y="625" text-anchor="middle">最新活動</text>
+  </g>
+
+  <!-- Cell 2: 免費好康 (moss) -->
+  <g>
+    <rect x="833" y="0" width="834" height="843" fill="#f2f6ef"/>
+    <!-- 禮物 icon -->
+    <g transform="translate(1250, 340)" class="icon" stroke="#3a5226">
+      <rect x="-85" y="-40" width="170" height="110" rx="6"/>
+      <line x1="-85" y1="-10" x2="85" y2="-10"/>
+      <line x1="0" y1="-40" x2="0" y2="70"/>
+      <path d="M-45 -85 Q-45 -40 0 -40 Q45 -40 45 -85 Q45 -105 25 -105 Q0 -105 0 -80 Q0 -105 -25 -105 Q-45 -105 -45 -85 Z"/>
+    </g>
+    <text class="cell-sub" fill="#5a7a3e" x="1250" y="520" text-anchor="middle">FREE</text>
+    <text class="cell-title" fill="#3a5226" x="1250" y="625" text-anchor="middle">免費好康</text>
+  </g>
+
+  <!-- Cell 3: 學習課程 (plum) -->
+  <g>
+    <rect x="1667" y="0" width="833" height="843" fill="#f4eef2"/>
+    <!-- 書本 icon -->
+    <g transform="translate(2083.5, 340)" class="icon" stroke="#5c3a52">
+      <path d="M-90 -70 Q-45 -85 0 -70 Q45 -85 90 -70 L90 65 Q45 50 0 65 Q-45 50 -90 65 Z"/>
+      <line x1="0" y1="-70" x2="0" y2="65"/>
+      <line x1="-70" y1="-45" x2="-20" y2="-55"/>
+      <line x1="20" y1="-55" x2="70" y2="-45"/>
+      <line x1="-70" y1="-15" x2="-20" y2="-25"/>
+      <line x1="20" y1="-25" x2="70" y2="-15"/>
+    </g>
+    <text class="cell-sub" fill="#8a5a7a" x="2083.5" y="520" text-anchor="middle">LEARN</text>
+    <text class="cell-title" fill="#5c3a52" x="2083.5" y="625" text-anchor="middle">學習課程</text>
+  </g>
+
+  <!-- ============ Row 2 ============ -->
+
+  <!-- Cell 4: 健康養生 (clay) -->
+  <g>
+    <rect x="0" y="843" width="833" height="843" fill="#f9f1ea"/>
+    <!-- 心跳 icon -->
+    <g transform="translate(416.5, 1183)" class="icon" stroke="#7d4a2e">
+      <path d="M-95 10 L-55 10 L-35 -35 L-10 40 L15 -45 L35 10 L95 10"/>
+      <circle cx="0" cy="65" r="6" fill="#7d4a2e" stroke="none"/>
+    </g>
+    <text class="cell-sub" fill="#b8714a" x="416.5" y="1363" text-anchor="middle">HEALTH</text>
+    <text class="cell-title" fill="#7d4a2e" x="416.5" y="1468" text-anchor="middle">健康養生</text>
+  </g>
+
+  <!-- Cell 5: 運動戶外 (moss 深) -->
+  <g>
+    <rect x="833" y="843" width="834" height="843" fill="#f2f6ef"/>
+    <!-- 跑步 icon -->
+    <g transform="translate(1250, 1183)" class="icon" stroke="#3a5226">
+      <circle cx="15" cy="-65" r="22"/>
+      <path d="M-35 60 L-15 20 L15 0 L40 25 L35 65"/>
+      <path d="M15 0 L0 -30 L-30 -25"/>
+      <path d="M40 25 L70 35"/>
+    </g>
+    <text class="cell-sub" fill="#5a7a3e" x="1250" y="1363" text-anchor="middle">SPORTS</text>
+    <text class="cell-title" fill="#3a5226" x="1250" y="1468" text-anchor="middle">運動戶外</text>
+  </g>
+
+  <!-- Cell 6: 文娛旅遊 (sun) -->
+  <g>
+    <rect x="1667" y="843" width="833" height="843" fill="#faf4e6"/>
+    <!-- 星星/音符混合:用山+太陽代表旅遊 -->
+    <g transform="translate(2083.5, 1183)" class="icon" stroke="#8a6528">
+      <circle cx="-50" cy="-40" r="26"/>
+      <path d="M-90 55 L-30 -10 L15 45 L55 5 L95 55 Z"/>
+    </g>
+    <text class="cell-sub" fill="#c89447" x="2083.5" y="1363" text-anchor="middle">CULTURE · TRAVEL</text>
+    <text class="cell-title" fill="#8a6528" x="2083.5" y="1468" text-anchor="middle">文娛旅遊</text>
+  </g>
+
+  <!-- 格子間的分隔線 (白色細線,讓 6 格邊界清楚) -->
+  <line class="divider" x1="833" y1="0" x2="833" y2="1686"/>
+  <line class="divider" x1="1667" y1="0" x2="1667" y2="1686"/>
+  <line class="divider" x1="0" y1="843" x2="2500" y2="843"/>
+</svg>

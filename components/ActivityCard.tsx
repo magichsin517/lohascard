@@ -2,7 +2,13 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Activity, CATEGORIES, PRICING_STYLE, PRICING_TIERS, formatEventTime, formatCost, pricingTierOf } from '@/lib/supabase';
 
-export default function ActivityCard({ activity }: { activity: Activity }) {
+export default function ActivityCard({
+  activity,
+  sessionCount = 1,
+}: {
+  activity: Activity;
+  sessionCount?: number;
+}) {
   const category = activity.category ? CATEGORIES[activity.category] : null;
   const imageUrl = activity.image_url || (activity.category ? `/images/categories/${activity.category}.svg` : '/images/categories/social.svg');
   const pricingTier = pricingTierOf(activity);
@@ -10,6 +16,7 @@ export default function ActivityCard({ activity }: { activity: Activity }) {
   // 定價 tag 已用獨立 badge 呈現,從 tags 中過濾掉避免重複
   const otherTags = (activity.tags || []).filter((t) => !(PRICING_TIERS as readonly string[]).includes(t));
   const detailHref = `/activities/${activity.id}`;
+  const hasMultipleSessions = sessionCount > 1;
 
   return (
     <article className="group bg-paper-raised rounded-2xl overflow-hidden border border-black/5 hover:border-black/15 hover:shadow-[0_4px_20px_-8px_rgba(0,0,0,0.12)] transition-all duration-300 flex flex-col">
@@ -58,7 +65,14 @@ export default function ActivityCard({ activity }: { activity: Activity }) {
           <div className="text-[12px] text-ink-faded space-y-1 font-[350]">
             <div className="flex items-start gap-2">
               <span className="text-ink-muted w-3 shrink-0 mt-px">◷</span>
-              <span>{formatEventTime(activity)}</span>
+              <span>
+                {formatEventTime(activity)}
+                {hasMultipleSessions && (
+                  <span className="ml-2 inline-block text-[11px] px-1.5 py-0.5 rounded-md bg-sky-50 text-sky-700 font-medium align-middle">
+                    共 {sessionCount} 場次
+                  </span>
+                )}
+              </span>
             </div>
             <div className="flex items-start gap-2">
               <span className="text-ink-muted w-3 shrink-0 mt-px">◉</span>
@@ -71,21 +85,6 @@ export default function ActivityCard({ activity }: { activity: Activity }) {
           </div>
         </div>
       </Link>
-
-      {/* 原始連結:幫原單位做導流,資訊透明 */}
-      {activity.source_url && (
-        <div className="px-5 pb-4 pt-0 mt-auto">
-          <a
-            href={activity.source_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-[12px] text-sky-700 hover:text-sky-500 hover:underline underline-offset-2"
-          >
-            閱讀原文
-            <span aria-hidden className="text-[10px]">↗</span>
-          </a>
-        </div>
-      )}
     </article>
   );
 }

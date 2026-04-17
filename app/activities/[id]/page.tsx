@@ -1,4 +1,4 @@
-import { supabase, Activity, CATEGORIES, formatEventTime, formatCost } from '@/lib/supabase';
+import { supabase, Activity, CATEGORIES, formatEventTime, formatCost, groupKey } from '@/lib/supabase';
 import Header from '@/components/Header';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -17,6 +17,31 @@ async function getActivity(id: string): Promise<Activity | null> {
   return data as Activity;
 }
 
+async function getSessionsInGroup(activity: Activity): Promise<Activity[]> {
+  // recurring 的不用合併
+  if (activity.event_type === 'recurring') return [activity];
+  // 用 title + location_name + organizer_name 精確比對同一活動的其他場次
+  let q = supabase
+    .from('activities')
+    .select('*')
+    .eq('status', 'active')
+    .eq('event_type', 'single')
+    .eq('title', activity.title);
+  q = activity.location_name
+    ? q.eq('location_name', activity.location_name)
+    : q.is('location_name', null);
+  q = activity.organizer_name
+    ? q.eq('organizer_name', activity.organizer_name)
+    : q.is('organizer_name', null);
+
+  const { data, error } = await q;
+  if (error || !data) return [activity];
+  const rows = data as Activity[];
+  // 再以 normalize 過的 groupKey 做二次確認,避免空白差異漏網
+  const myKey = groupKey(activity);
+  return rows.filter((r) => groupKey(r) === myKey);
+}
+
 export default async function ActivityDetailPage({
   params,
 }: {
@@ -26,6 +51,17 @@ export default async function ActivityDetailPage({
   const activity = await getActivity(id);
 
   if (!activity) notFound();
+
+  const allSessions = await getSessionsInGroup(activity);
+  // 排序:有日期的按日期升冪,沒日期的排最後
+  allSessions.sort((a, b) => {
+    if (!a.start_date && !b.start_date) return 0;
+    if (!a.start_date) return 1;
+    if (!b.start_date) return -1;
+    if (a.start_date !== b.start_date) return a.start_date < b.start_date ? -1 : 1;
+    return (a.start_time || '') < (b.start_time || '') ? -1 : 1;
+  });
+  const hasMultipleSessions = allSessions.length > 1;
 
   const category = activity.category ? CATEGORIES[activity.category] : null;
   const imageUrl = activity.image_url || (activity.category ? `/images/categories/${activity.category}.svg` : '/images/categories/social.svg');
@@ -84,7 +120,11 @@ export default async function ActivityDetailPage({
 
           {/* 關鍵資訊 block */}
           <div className="bg-paper-sunken rounded-2xl p-6 md:p-7 mb-10 space-y-4">
-            <InfoRow label="時間" value={formatEventTime(activity)} />
+            {hasMultipleSessions ? (
+              <SessionsRow sessions={allSessions} />
+            ) : (
+              <InfoRow label="時間" value={formatEventTime(activity)} />
+            )}
             <InfoRow label="地點" value={activity.location_name || ''} secondary={activity.address} />
             <InfoRow
               label="區域"
@@ -110,6 +150,22 @@ export default async function ActivityDetailPage({
             <h2 className="font-display text-xl text-ink mb-4">如何參加</h2>
             <SignupCard activity={activity} />
           </section>
+
+          {/* 原始公告連結:想知道消息來源或看完整內容時用 */}
+          {activity.source_url && (
+            <section className="border-t border-black/5 mt-10 pt-6">
+              <p className="text-[12px] tracking-[0.15em] text-ink-faded uppercase mb-2">消息來源</p>
+              <a
+                href={activity.source_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-[14px] text-sky-700 hover:text-sky-500 hover:underline underline-offset-2 break-all"
+              >
+                閱讀原文公告
+                <span aria-hidden className="text-[11px]">↗</span>
+              </a>
+            </section>
+          )}
         </article>
 
         <footer className="border-t border-black/5 mt-16 pt-8 pb-10 text-center">
@@ -132,6 +188,28 @@ function InfoRow({ label, value, secondary }: { label: string; value: string; se
       <div>
         <p className="text-[15px] text-ink">{value}</p>
         {secondary && <p className="text-[13px] text-ink-muted mt-0.5">{secondary}</p>}
+      </div>
+    </div>
+  );
+}
+
+function SessionsRow({ sessions }: { sessions: Activity[] }) {
+  return (
+    <div className="flex gap-6 items-baseline">
+      <span className="text-[12px] tracking-[0.15em] text-ink-faded uppercase w-14 shrink-0">
+        時間
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-[13px] text-ink-muted mb-2">
+          共 <span className="text-ink font-medium">{sessions.length}</span> 場次可選
+        </p>
+        <ul className="divide-y divide-black/5 border-t border-black/5">
+          {sessions.map((s) => (
+            <li key={s.id} className="py-2.5 text-[14.5px] text-ink">
+              {formatEventTime(s)}
+            </li>
+          ))}
+        </ul>
       </div>
     </div>
   );
