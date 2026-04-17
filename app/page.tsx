@@ -56,11 +56,12 @@ async function getActivityGroups(
     if (district) q2 = q2.eq('district', district);
     if (city) q2 = q2.eq('city', city);
     if (pricing && pricing !== 'all') q2 = q2.contains('tags', [pricing]);
-    // 資料類型(課程 / 據點 / 全部)
+    // 資料類型(課程活動 / 鄰近社區(venue pool)/ 全部)
+    // 「鄰近社區」是衛福部據點這類沒有具體活動資訊的 venue,預設不混進主列表
     if (!source || source === 'course') {
-      q2 = q2.not('tags', 'cs', '{"樂齡據點"}');
+      q2 = q2.not('tags', 'cs', '{"鄰近社區"}');
     } else if (source === 'point') {
-      q2 = q2.contains('tags', ['樂齡據點']);
+      q2 = q2.contains('tags', ['鄰近社區']);
     }
     if (q && q.trim()) {
       const kw = q.trim().replace(/[%,]/g, '');

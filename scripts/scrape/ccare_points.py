@@ -180,7 +180,7 @@ def to_activity_row(p: Point) -> dict[str, Any]:
         "city": p.city,
         "district": p.district,
         "category": "social",
-        "tags": ["樂齡據點", "社區關懷", "免費"],
+        "tags": ["鄰近社區", "社區關懷", "免費"],
         "target_audience": "55+",
         "cost": 0,
         "signup_method": "phone" if p.phone else "walk_in",

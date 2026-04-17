@@ -2,11 +2,11 @@
 
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 
-// 資料類型:課程 / 社區據點 / 全部
-// 預設「課程」(排除據點),避免首次進來 5800+ 據點卡片洗版
+// 資料類型:課程活動(主要)/ 鄰近社區(venue pool)/ 全部
+// 「鄰近社區」= 衛福部 5,800+ 關懷據點,有地址電話但沒具體活動排程,屬參考性質
 const OPTIONS: Array<{ key: string; label: string; hint?: string }> = [
   { key: 'course', label: '課程活動' },
-  { key: 'point', label: '社區據點' },
+  { key: 'point', label: '鄰近社區' },
   { key: 'all', label: '全部' },
 ];
 
