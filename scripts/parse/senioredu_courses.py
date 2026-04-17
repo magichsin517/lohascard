@@ -541,6 +541,76 @@ def office_to_pdf(raw: bytes, ext: str) -> bytes:
 
 # ===== Gemini 呼叫 =====
 
+def _extract_body_text(html: str, max_chars: int = 5000) -> str:
+    """抽出網頁主內容的純文字(剝 HTML tag),用於 text fallback。
+    截止於「附件下載/公告單位」等 footer marker,過濾 script/style。"""
+    # 先砍 script / style
+    cleaned = re.sub(r"<script\b[^>]*>.*?</script>", " ", html, flags=re.DOTALL | re.IGNORECASE)
+    cleaned = re.sub(r"<style\b[^>]*>.*?</style>", " ", cleaned, flags=re.DOTALL | re.IGNORECASE)
+    # <br>/<p>/<tr>/<li> 換行保留
+    cleaned = re.sub(r"<\s*(br|/p|/tr|/li|/div)\s*[^>]*>", "\n", cleaned, flags=re.IGNORECASE)
+    # 剝剩餘 tag
+    text = _TAG_RE.sub(" ", cleaned)
+    text = html_lib.unescape(text)
+    # 正規化空白,保留換行
+    text = re.sub(r"[ \t]+", " ", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    # 切掉 footer
+    for marker in ("附件下載", "公告單位", "公告日期", "分享到FB", "【隱私權"):
+        idx = text.find(marker)
+        if idx > 0:
+            text = text[:idx]
+            break
+    text = text.strip()
+    if len(text) > max_chars:
+        text = text[:max_chars]
+    return text
+
+
+def gemini_parse_text(page_text: str, api_key: str) -> list[dict]:
+    """送純文字(非圖片/PDF)到 Gemini 解析課表。用在「沒附件、沒 HTML table、
+    但頁面有文字排版課表」的情況 — 例如把課表當成段落或用 <br> 排版的樂齡公告。
+
+    成本:Gemini 2.5 Flash 文字 input 約 $0.075/M tokens。一頁 ~500-1500 tokens,
+    單筆成本約 $0.0001。14 頁總成本 ~$0.01。
+    """
+    full_prompt = (
+        PROMPT
+        + "\n\n【注意】以下內容是網頁文字(非圖片)。排版可能用空白、換行或編號分欄,"
+        "請根據文字線索盡力拆出每一堂課。若同一堂課有多個時段,用 weekday 描述 "
+        "(例如『每週一、三 09:00-11:00』)。"
+        + "\n\n【網頁文字】\n" + page_text
+    )
+    payload = {
+        "contents": [{"parts": [{"text": full_prompt}]}],
+        "generationConfig": {
+            "temperature": 0.0,
+            "response_mime_type": "application/json",
+        },
+    }
+    req = urllib.request.Request(
+        GEMINI_ENDPOINT,
+        data=json.dumps(payload).encode(),
+        method="POST",
+        headers={"Content-Type": "application/json", "x-goog-api-key": api_key},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=120) as r:
+            resp = json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        raise RuntimeError(f"Gemini API error: {e.code}: {e.read().decode()[:300]}")
+
+    try:
+        text = resp["candidates"][0]["content"]["parts"][0]["text"]
+    except (KeyError, IndexError):
+        raise RuntimeError(f"Gemini 回傳格式異常: {json.dumps(resp)[:300]}")
+
+    courses = json.loads(text)
+    if not isinstance(courses, list):
+        raise RuntimeError(f"Gemini 沒回 array: {type(courses)}")
+    return courses
+
+
 def gemini_parse(data: bytes, mime: str, api_key: str) -> list[dict]:
     """把二進位資料送 Gemini,要求解析課表,回傳 list[dict]。"""
     payload = {
@@ -705,9 +775,11 @@ def process_one(
     *,
     dry_run: bool = False,
     html_only: bool = False,
+    text_fallback: bool = False,
 ) -> tuple[str, int]:
     """回傳 (狀態, 插入數)。狀態:ok/no_attachment/parse_failed/http_failed/docx_failed
     html_only=True 時,遇到有附件的 parent 直接 skip(不動 tag),只跑 HTML table path。
+    text_fallback=True 時,若 HTML table 解析失敗,會把整頁文字送 Gemini 試最後一次。
 
     重要:本函式對 parent.tags 的修改是 atomic 的 — 無論 parent 原本帶哪個 state tag
     (無課表附件/解析失敗/解析0堂),處理完之後 state tag 會被正確換成新的結果;
@@ -742,6 +814,24 @@ def process_one(
                 supa.insert_many(rows)
                 supa.delete_id(parent.id)
                 return "ok_html", len(rows)
+        # HTML table 也沒抓到 → 若 text_fallback 開啟,送 Gemini 解析純文字頁面
+        if text_fallback and api_key:
+            body_text = _extract_body_text(html)
+            if body_text and len(body_text) >= 50:
+                try:
+                    courses_t = gemini_parse_text(body_text, api_key)
+                except Exception as e:
+                    print(f"  [gemini-text] {e}")
+                    courses_t = []
+                if courses_t:
+                    rows = [r for c in courses_t for r in [course_to_row(c, parent)] if r]
+                    if rows:
+                        if dry_run:
+                            print(f"  [dry-text] 會插入 {len(rows)} 筆(Gemini text),刪 parent {parent.id}")
+                            return "ok_text", len(rows)
+                        supa.insert_many(rows)
+                        supa.delete_id(parent.id)
+                        return "ok_text", len(rows)
         # 真的沒東西能解析,標記 tag(atomic:clear 舊 state + set 新 state)
         if not dry_run:
             supa.patch_id(parent.id, {"tags": _with_state_tag(parent.tags, "無課表附件")})
@@ -825,6 +915,13 @@ def main() -> int:
              "配合 --all 可以一口氣救出『tag 已被剝掉但 Gemini 還沒處理』的中間狀態。"
              "不需要 GEMINI_API_KEY。",
     )
+    ap.add_argument(
+        "--text-fallback",
+        action="store_true",
+        help="若 HTML table 解析失敗,把整頁文字送 Gemini 試最後一次解析。"
+             "專門救『沒附件、課表用純文字排版』的 parent(如鶯歌、湖口、楠梓)。"
+             "需要 GEMINI_API_KEY。成本:一頁 ~$0.0001。",
+    )
     args = ap.parse_args()
 
     supa_url = os.environ.get("SUPABASE_URL")
@@ -836,6 +933,9 @@ def main() -> int:
         return 2
     if not args.retry_no_attachment and not args.html_only and not api_key:
         print("[error] 缺 GEMINI_API_KEY(一般模式要用 Gemini 解析 PDF)", file=sys.stderr)
+        return 2
+    if args.text_fallback and not api_key:
+        print("[error] --text-fallback 需要 GEMINI_API_KEY", file=sys.stderr)
         return 2
 
     supa = Supa(supa_url, supa_key)
@@ -858,7 +958,12 @@ def main() -> int:
 
     def _work(p: Activity):
         try:
-            status, n = process_one(p, supa, api_key, dry_run=args.dry_run, html_only=args.html_only)
+            status, n = process_one(
+                p, supa, api_key,
+                dry_run=args.dry_run,
+                html_only=args.html_only,
+                text_fallback=args.text_fallback,
+            )
             return p, status, n, None
         except Exception as e:
             return p, "exception", 0, str(e)
