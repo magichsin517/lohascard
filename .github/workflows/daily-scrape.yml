@@ -1,13 +1,16 @@
-name: 每日爬蟲 — 樂齡網 + 弘道 + 台北旅遊網 + 台中文化局
+name: 每日爬蟲 — 弘道 + 台北旅遊網 + 台中文化局
 
 # 每天台北時間凌晨 3:15 跑(= UTC 19:15 前一日)
 # 也可以手動到 Actions 頁面按 "Run workflow"
 #
-# 改版紀錄(2026-04-18):
-#   原本所有 scraper 在同一個 job 內串接跑,樂齡網 8-12min 吃掉大部分時間
-#   導致整個 job 撞到 10 分鐘 timeout 被 cancel。
-#   改成平行 jobs,每個 scraper 自己一個 job,互不干擾。
-#   優點:一支卡死不影響其他、每支各自的 log 好看、總時間看最慢那支。
+# 改版紀錄:
+#   2026-04-18 早:所有 scraper 在同一個 job 內串接跑,樂齡網 8-12min 吃掉
+#     大部分時間,導致整個 job 撞到 10 分鐘 timeout 被 cancel。
+#     改成平行 jobs,每個 scraper 自己一個 job,互不干擾。
+#   2026-04-18 晚:樂齡網(moe.senioredu.moe.gov.tw)從 GHA 美國機房 IP
+#     100% urlopen timeout,TW 家用網路 OK。判定是 server 端 geo 擋。
+#     樂齡網 job 註解掉,改用本地 Mac 的「執行樂齡.command」手動跑。
+#     GHA 只負責 GHA 打得通的三個 scraper。
 
 on:
   schedule:
@@ -15,21 +18,21 @@ on:
   workflow_dispatch:
 
 jobs:
-  # 教育部樂齡學習網:全台 22 縣市,跑最久(8-12 min),給它獨立 job
-  senioredu:
-    name: 樂齡網 (教育部,全台 22 縣市)
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - name: Run senioredu_moe
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: python3 scripts/scrape/senioredu_moe.py --upsert --sleep 0.5
+  # --- senioredu(樂齡網)暫停,GHA 連不到 moe.senioredu.moe.gov.tw ---
+  # senioredu:
+  #   name: 樂齡網 (教育部,全台 22 縣市)
+  #   runs-on: ubuntu-latest
+  #   timeout-minutes: 20
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-python@v5
+  #       with:
+  #         python-version: '3.12'
+  #     - name: Run senioredu_moe
+  #       env:
+  #         SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+  #         SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+  #       run: python3 scripts/scrape/senioredu_moe.py --upsert
 
   # 弘道老人福利基金會:活動消息,約 1-2 min
   hondao:
