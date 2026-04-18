@@ -77,11 +77,17 @@ class ScrapedItem:
     image_url: str | None
 
 
+# 強制不走 proxy(macOS 系統代理設定會讓 urllib 自動走 127.0.0.1:xxxx,
+# Clash/V2Ray 關閉時會 Connection refused。這裡明確開一條直連的 opener)
+_NO_PROXY_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
+
 def fetch_json(url: str, *, retries: int = 3, timeout: int = 40) -> Any:
     """台北旅遊網 API:
     - 需要 Accept: application/json 才會回 JSON(否則 400 Invalid Parameter)
     - WAF 會擋 "LohasCardBot" 這類自訂 UA(403 Forbidden),改用真實 Chrome UA
     - 加 Referer 模擬從 Swagger UI 發出的請求,更像真人使用
+    - 強制不走 system proxy(繞過 Clash/V2Ray 關閉時的 Connection refused)
     """
     last = None
     headers = {
@@ -93,7 +99,7 @@ def fetch_json(url: str, *, retries: int = 3, timeout: int = 40) -> Any:
     for i in range(retries):
         try:
             req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req, timeout=timeout) as r:
+            with _NO_PROXY_OPENER.open(req, timeout=timeout) as r:
                 return json.loads(r.read())
         except Exception as e:
             last = e
@@ -286,6 +292,7 @@ def to_activity_row(item: ScrapedItem) -> dict[str, Any]:
 
 
 def upsert_to_supabase(rows: list[dict], supa_url: str, supa_key: str) -> int:
+    """強制不走 system proxy(同 fetch_json),避免 Clash 關閉時 Connection refused。"""
     if not rows:
         return 0
     # 去重用 source_url(同一 API id 會有穩定 url)
@@ -298,7 +305,7 @@ def upsert_to_supabase(rows: list[dict], supa_url: str, supa_key: str) -> int:
         "apikey": supa_key,
         "Authorization": f"Bearer {supa_key}",
     })
-    with urllib.request.urlopen(req, timeout=20) as r:
+    with _NO_PROXY_OPENER.open(req, timeout=20) as r:
         existing = {x["source_url"] for x in json.loads(r.read()) if x.get("source_url")}
 
     new_rows = [r for r in rows if r.get("source_url") and r["source_url"] not in existing]
@@ -321,7 +328,7 @@ def upsert_to_supabase(rows: list[dict], supa_url: str, supa_key: str) -> int:
                 "Prefer": "return=representation",
             },
         )
-        with urllib.request.urlopen(req, timeout=60) as r:
+        with _NO_PROXY_OPENER.open(req, timeout=60) as r:
             out = json.loads(r.read())
         total_inserted += len(out)
     return total_inserted
