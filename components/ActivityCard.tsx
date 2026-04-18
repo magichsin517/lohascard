@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { Activity, CATEGORIES, PRICING_STYLE, PRICING_TIERS, formatEventTime, formatCost, pricingTierOf } from '@/lib/supabase';
+import BookmarkButton from './BookmarkButton';
 
 export default function ActivityCard({
   activity,
@@ -19,10 +20,13 @@ export default function ActivityCard({
   const hasMultipleSessions = sessionCount > 1;
 
   return (
-    <article className="group bg-paper-raised rounded-2xl overflow-hidden border border-black/5 hover:border-black/15 hover:shadow-[0_4px_20px_-8px_rgba(0,0,0,0.12)] transition-all duration-300 flex flex-col">
+    <article className="group relative bg-paper-raised rounded-2xl border border-black/5 hover:border-black/15 hover:shadow-[0_4px_20px_-8px_rgba(0,0,0,0.12)] transition-all duration-300 flex flex-col">
+      {/* 收藏按鈕:絕對定位在右上角,overlay 在 Link 之上,防止點擊冒泡到卡片 */}
+      <BookmarkButton activityId={activity.id} variant="overlay" />
+
       {/* 圖片 + 主內容都導到詳細頁 */}
       <Link href={detailHref} className="block">
-        <div className="relative aspect-[5/3] bg-paper-sunken overflow-hidden">
+        <div className="relative aspect-[5/3] bg-paper-sunken overflow-hidden rounded-t-2xl">
           <Image
             src={imageUrl}
             alt={activity.title}

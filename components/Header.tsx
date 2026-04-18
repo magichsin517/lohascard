@@ -22,14 +22,30 @@ export default function Header() {
           </span>
         </Link>
 
-        <a
-          href="https://line.me/R/ti/p/%40388pvphx"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-sm px-4 py-2 rounded-full bg-ink text-paper hover:bg-ink-soft transition-colors"
-        >
-          加入 LINE
-        </a>
+        <nav className="flex items-center gap-2 md:gap-3">
+          <Link
+            href="/me"
+            className="text-sm px-3 md:px-4 py-2 rounded-full text-ink-soft hover:text-ink hover:bg-paper-sunken transition-colors inline-flex items-center gap-1.5"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              className="w-4 h-4"
+              fill="currentColor"
+              aria-hidden
+            >
+              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+            </svg>
+            我的
+          </Link>
+          <a
+            href="https://line.me/R/ti/p/%40388pvphx"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm px-4 py-2 rounded-full bg-ink text-paper hover:bg-ink-soft transition-colors"
+          >
+            加入 LINE
+          </a>
+        </nav>
       </div>
     </header>
   );
