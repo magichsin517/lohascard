@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Header from '@/components/Header';
 import ActivityCard from '@/components/ActivityCard';
+import BookmarkReview from '@/components/BookmarkReview';
 import {
   Bookmark,
   BOOKMARK_LABEL,
@@ -15,6 +16,8 @@ import {
 import { Activity, supabase } from '@/lib/supabase';
 
 type GroupedActivities = Record<BookmarkStatus, Activity[]>;
+type BookmarkLookup = Map<number, Bookmark>; // activity_id → bookmark
+type GroupedBookmarks = Record<BookmarkStatus, BookmarkLookup>;
 type TabKey = 'all' | BookmarkStatus;
 
 const TAB_ORDER: TabKey[] = ['all', 'want', 'registered', 'done'];
@@ -32,6 +35,11 @@ export default function MePage() {
     want: [],
     registered: [],
     done: [],
+  });
+  const [bookmarkLookup, setBookmarkLookup] = useState<GroupedBookmarks>({
+    want: new Map(),
+    registered: new Map(),
+    done: new Map(),
   });
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<TabKey>('all');
@@ -88,8 +96,16 @@ export default function MePage() {
             .filter((x): x is Activity => Boolean(x)),
         };
 
+        // 建一份 activity_id → bookmark 的對照表,給 BookmarkReview 取 rating/note
+        const lookup: GroupedBookmarks = {
+          want: new Map(byStatus.want.map((b) => [b.activity_id, b])),
+          registered: new Map(byStatus.registered.map((b) => [b.activity_id, b])),
+          done: new Map(byStatus.done.map((b) => [b.activity_id, b])),
+        };
+
         if (!cancelled) {
           setGrouped(next);
+          setBookmarkLookup(lookup);
           setLoading(false);
         }
       } catch (e) {
@@ -202,9 +218,22 @@ export default function MePage() {
                     </div>
                   ) : (
                     <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                      {items.map((a) => (
-                        <ActivityCard key={a.id} activity={a} />
-                      ))}
+                      {items.map((a) => {
+                        const bm =
+                          status === 'done' ? bookmarkLookup.done.get(a.id) : null;
+                        return (
+                          <div key={a.id} className="flex flex-col gap-2">
+                            <ActivityCard activity={a} />
+                            {bm && (
+                              <BookmarkReview
+                                activityId={a.id}
+                                initialRating={bm.rating}
+                                initialNote={bm.note}
+                              />
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </section>

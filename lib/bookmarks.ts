@@ -149,3 +149,58 @@ export async function getBookmarksByStatus(): Promise<Record<BookmarkStatus, Boo
   }
   return grouped;
 }
+
+// ─── 打星 + 寫心得(Phase 2)────────────────────────────
+
+/** 設定評分(1-5)。傳 null 清空 */
+export async function setRating(
+  activityId: number,
+  rating: number | null
+): Promise<Bookmark | null> {
+  const anonId = getAnonId();
+  if (!anonId) return null;
+  if (rating !== null && (rating < 1 || rating > 5)) {
+    console.error('[bookmarks] rating must be 1-5, got:', rating);
+    return null;
+  }
+  const { data, error } = await supabase
+    .from('user_bookmarks')
+    .update({
+      rating,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('anon_id', anonId)
+    .eq('activity_id', activityId)
+    .select()
+    .single();
+  if (error) {
+    console.error('[bookmarks] setRating error:', error);
+    return null;
+  }
+  return data as Bookmark;
+}
+
+/** 設定心得文字。傳 null 或空字串清空 */
+export async function setNote(
+  activityId: number,
+  note: string | null
+): Promise<Bookmark | null> {
+  const anonId = getAnonId();
+  if (!anonId) return null;
+  const cleaned = note && note.trim() ? note.trim() : null;
+  const { data, error } = await supabase
+    .from('user_bookmarks')
+    .update({
+      note: cleaned,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('anon_id', anonId)
+    .eq('activity_id', activityId)
+    .select()
+    .single();
+  if (error) {
+    console.error('[bookmarks] setNote error:', error);
+    return null;
+  }
+  return data as Bookmark;
+}
