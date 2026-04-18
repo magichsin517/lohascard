@@ -207,14 +207,16 @@ def fetch_json(url: str, *, retries: int = 3, timeout: int = 60) -> str:
 
 
 def parse_json_loose(raw: str) -> dict[str, Any]:
-    """台中文化局的 JSON 有 trailing commas + 偶爾夾控制字元,先清掉再 parse。"""
+    """台中文化局的 JSON 有 trailing commas + 夾控制字元,先清掉再寬鬆 parse。"""
     # 1. 移除 trailing commas 在 } 或 ] 之前
     cleaned = re.sub(r",(\s*[}\]])", r"\1", raw)
-    # 2. 移除 JSON 不允許的控制字元(U+0000–U+001F, 除 \t \n \r)
-    #    對方 payload 有時夾垂直 tab / form feed / 裸 0x1F 之類,會讓 json.loads
-    #    報 "Invalid control character at: line N column M"
+    # 2. 移除 JSON 絕對不允許的控制字元(U+0000–U+001F, 除 \t \n \r)
+    #    對方 payload 有時夾垂直 tab / form feed / 裸 0x1F 之類
     cleaned = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", cleaned)
-    return json.loads(cleaned)
+    # 3. strict=False 讓 json.loads 接受字串裡 raw 的 \t \n \r
+    #    (台中文化局某些欄位裡有直接塞 tab,strict 模式會炸
+    #     "Invalid control character at: line N column M")
+    return json.loads(cleaned, strict=False)
 
 
 def parse_date_range(s: str) -> tuple[str | None, str | None, str | None, str | None]:
