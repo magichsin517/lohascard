@@ -13,6 +13,7 @@ export default function PricingFilter() {
 
   const handleClick = (key: string) => {
     const params = new URLSearchParams(searchParams.toString());
+    params.delete('page');
     if (key === 'all') {
       params.delete('pricing');
     } else {
@@ -22,15 +23,16 @@ export default function PricingFilter() {
   };
 
   return (
-    <div className="flex gap-2 flex-wrap">
+    <div className="flex gap-2 gap-y-1.5 flex-wrap items-center">
+      <span className="text-[14px] text-ink-muted font-medium shrink-0 mr-1">費用</span>
       {ALL.map((key) => {
         const isActive = current === key;
-        const label = key === 'all' ? '全部費用' : key;
+        const label = key === 'all' ? '全部' : key;
         return (
           <button
             key={key}
             onClick={() => handleClick(key)}
-            className={`text-[13px] px-4 py-1.5 rounded-full transition-all ${
+            className={`text-[14.5px] px-4 py-1.5 rounded-full transition-all ${
               isActive
                 ? 'bg-ink text-paper'
                 : 'bg-paper-raised text-ink-muted hover:bg-paper-sunken border border-black/5'

@@ -121,21 +121,21 @@ export default async function HomePage({
       <main className="max-w-6xl mx-auto px-5 md:px-8">
         {/* Hero 區塊 */}
         <section className="py-14 md:py-20 border-b border-black/5">
-          <p className="text-[11px] tracking-[0.25em] text-ink-faded uppercase mb-5">
+          <p className="text-[12px] tracking-[0.25em] text-ink-faded uppercase mb-5">
             For 55+ · Taiwan
           </p>
-          <h1 className="font-display text-[36px] md:text-[52px] leading-[1.2] text-ink max-w-3xl mb-5">
+          <h1 className="font-display text-[38px] md:text-[56px] leading-[1.2] text-ink max-w-3xl mb-5">
             樂齡的每一天,<br />
             都值得好好過。
           </h1>
-          <p className="text-ink-muted text-[16px] md:text-[17px] max-w-xl leading-relaxed">
+          <p className="text-ink-muted text-[17px] md:text-[19px] max-w-xl leading-relaxed">
             我們幫你從全台樂齡學習中心、社區關懷據點、里長、老人服務中心的活動裡,挑出最值得參加的那些。
             免費或小額,在你家附近,說走就走。
           </p>
         </section>
 
         {/* 篩選區 */}
-        <section className="py-8 md:py-10 space-y-5">
+        <section className="py-8 md:py-10 space-y-4">
           <SearchBox />
           <SourceFilter />
           <CategoryFilter />
@@ -146,7 +146,7 @@ export default async function HomePage({
         {/* 活動列表 */}
         <section className="pb-8">
           <div className="flex items-baseline justify-between mb-6">
-            <p className="text-[13px] text-ink-faded">
+            <p className="text-[14px] text-ink-muted">
               {params.q ? `搜尋「${params.q}」· ` : ''}
               {params.city ? `${params.city} · ` : ''}
               {params.district ? `${params.district} · ` : ''}
@@ -175,11 +175,11 @@ export default async function HomePage({
         <LineCallout />
 
         <footer className="border-t border-black/5 py-10 text-center">
-          <p className="font-display text-lg text-ink mb-2">樂活卡卡</p>
-          <p className="text-[12px] text-ink-faded">
+          <p className="font-display text-xl text-ink mb-2">樂活卡卡</p>
+          <p className="text-[13px] text-ink-muted">
             Lohas Card · 為台灣樂齡族聚合好活動
           </p>
-          <p className="text-[11px] text-ink-faded mt-4">
+          <p className="text-[12.5px] text-ink-faded mt-4">
             資料來源:教育部樂齡學習網、衛生福利部社區照顧關懷據點、各縣市政府、各合作單位
           </p>
         </footer>
@@ -191,8 +191,8 @@ export default async function HomePage({
 function EmptyState() {
   return (
     <div className="py-24 text-center">
-      <p className="font-display text-xl text-ink mb-2">這區暫時還沒有活動</p>
-      <p className="text-[13px] text-ink-muted">試試別的區域,或回到全部活動</p>
+      <p className="font-display text-[22px] text-ink mb-2">這區暫時還沒有活動</p>
+      <p className="text-[15px] text-ink-muted">試試別的區域,或回到全部活動</p>
     </div>
   );
 }

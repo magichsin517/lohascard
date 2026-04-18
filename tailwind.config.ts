@@ -15,8 +15,8 @@ const config: Config = {
         ink: {
           DEFAULT: '#1a1a1a',
           soft: '#3a3a3a',
-          muted: '#6b6b6b',
-          faded: '#9a9a9a',
+          muted: '#5a5a5a',   // 從 #6b6b6b 加深,55+ 可讀性
+          faded: '#7a7a7a',   // 從 #9a9a9a 加深,老花眼友善
         },
         paper: {
           DEFAULT: '#fdfcf8',

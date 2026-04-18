@@ -36,54 +36,54 @@ export default function ActivityCard({
           />
         </div>
 
-        <div className="p-5 pb-3">
+        <div className="p-5 pb-4">
           <div className="flex gap-1.5 mb-3 flex-wrap">
             {category && (
-              <span className={`text-[11px] px-2.5 py-0.5 rounded-full ${category.bg} ${category.text} font-medium`}>
+              <span className={`text-[12.5px] px-2.5 py-0.5 rounded-full ${category.bg} ${category.text} font-medium`}>
                 {category.label}
               </span>
             )}
-            <span className={`text-[11px] px-2.5 py-0.5 rounded-full ${pricingStyle.bg} ${pricingStyle.text} font-medium`}>
+            <span className={`text-[12.5px] px-2.5 py-0.5 rounded-full ${pricingStyle.bg} ${pricingStyle.text} font-medium`}>
               {pricingTier}
             </span>
             {otherTags.slice(0, 2).map((tag) => (
               <span
                 key={tag}
-                className="text-[11px] px-2.5 py-0.5 rounded-full bg-paper-sunken text-ink-muted"
+                className="text-[12.5px] px-2.5 py-0.5 rounded-full bg-paper-sunken text-ink-muted"
               >
                 {tag}
               </span>
             ))}
           </div>
 
-          <h3 className="font-medium text-[15.5px] leading-snug mb-1.5 text-ink group-hover:text-ink-soft transition-colors">
+          <h3 className="font-medium text-[17.5px] leading-snug mb-2 text-ink group-hover:text-ink-soft transition-colors">
             {activity.title}
           </h3>
 
           {activity.summary && (
-            <p className="text-[13px] text-ink-muted leading-relaxed mb-4 line-clamp-2">
+            <p className="text-[15px] text-ink-muted leading-relaxed mb-4 line-clamp-2">
               {activity.summary}
             </p>
           )}
 
-          <div className="text-[12px] text-ink-faded space-y-1 font-[350]">
+          <div className="text-[14px] text-ink-muted space-y-1.5 font-normal">
             <div className="flex items-start gap-2">
-              <span className="text-ink-muted w-3 shrink-0 mt-px">◷</span>
+              <span className="text-ink-faded w-3.5 shrink-0 mt-px">◷</span>
               <span>
                 {formatEventTime(activity)}
                 {hasMultipleSessions && (
-                  <span className="ml-2 inline-block text-[11px] px-1.5 py-0.5 rounded-md bg-sky-50 text-sky-700 font-medium align-middle">
+                  <span className="ml-2 inline-block text-[12.5px] px-1.5 py-0.5 rounded-md bg-sky-50 text-sky-700 font-medium align-middle">
                     共 {sessionCount} 場次
                   </span>
                 )}
               </span>
             </div>
             <div className="flex items-start gap-2">
-              <span className="text-ink-muted w-3 shrink-0 mt-px">◉</span>
+              <span className="text-ink-faded w-3.5 shrink-0 mt-px">◉</span>
               <span className="truncate">{activity.location_name}</span>
             </div>
             <div className="flex items-start gap-2">
-              <span className="text-ink-muted w-3 shrink-0 mt-px">¥</span>
+              <span className="text-ink-faded w-3.5 shrink-0 mt-px">¥</span>
               <span>{formatCost(activity)}</span>
             </div>
           </div>

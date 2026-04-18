@@ -44,7 +44,7 @@ export default function Pagination({ currentPage, totalPages }: Props) {
       <Link
         href={makeHref(Math.max(1, currentPage - 1))}
         aria-disabled={currentPage === 1}
-        className={`text-[13px] px-3 py-1.5 rounded-full border transition-colors ${
+        className={`text-[14.5px] px-3 py-1.5 rounded-full border transition-colors ${
           currentPage === 1
             ? 'border-black/5 text-ink-faded pointer-events-none'
             : 'border-black/10 text-ink-muted hover:bg-paper-sunken'
@@ -55,14 +55,14 @@ export default function Pagination({ currentPage, totalPages }: Props) {
 
       {pages.map((p, i) =>
         p === 'ellipsis' ? (
-          <span key={`e-${i}`} className="text-[13px] text-ink-faded px-1.5">
+          <span key={`e-${i}`} className="text-[14.5px] text-ink-faded px-1.5">
             …
           </span>
         ) : (
           <Link
             key={p}
             href={makeHref(p)}
-            className={`text-[13px] min-w-9 text-center px-3 py-1.5 rounded-full border transition-colors ${
+            className={`text-[14.5px] min-w-9 text-center px-3 py-1.5 rounded-full border transition-colors ${
               p === currentPage
                 ? 'bg-ink text-paper border-ink'
                 : 'border-black/5 text-ink-muted hover:bg-paper-sunken'
@@ -76,7 +76,7 @@ export default function Pagination({ currentPage, totalPages }: Props) {
       <Link
         href={makeHref(Math.min(totalPages, currentPage + 1))}
         aria-disabled={currentPage === totalPages}
-        className={`text-[13px] px-3 py-1.5 rounded-full border transition-colors ${
+        className={`text-[14.5px] px-3 py-1.5 rounded-full border transition-colors ${
           currentPage === totalPages
             ? 'border-black/5 text-ink-faded pointer-events-none'
             : 'border-black/10 text-ink-muted hover:bg-paper-sunken'

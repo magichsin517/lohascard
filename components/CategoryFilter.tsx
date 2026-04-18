@@ -13,6 +13,7 @@ export default function CategoryFilter() {
 
   const handleClick = (cat: string) => {
     const params = new URLSearchParams(searchParams.toString());
+    params.delete('page');
     if (cat === 'all') {
       params.delete('category');
     } else {
@@ -22,7 +23,8 @@ export default function CategoryFilter() {
   };
 
   return (
-    <div className="flex gap-2 flex-wrap">
+    <div className="flex gap-2 gap-y-1.5 flex-wrap items-center">
+      <span className="text-[14px] text-ink-muted font-medium shrink-0 mr-1">分類</span>
       {ALL_CATEGORIES.map((cat) => {
         const isActive = currentCategory === cat;
         const label = cat === 'all' ? '全部' : CATEGORIES[cat as Category].label;
@@ -30,7 +32,7 @@ export default function CategoryFilter() {
           <button
             key={cat}
             onClick={() => handleClick(cat)}
-            className={`text-[13px] px-4 py-1.5 rounded-full transition-all ${
+            className={`text-[14.5px] px-4 py-1.5 rounded-full transition-all ${
               isActive
                 ? 'bg-ink text-paper'
                 : 'bg-paper-raised text-ink-muted hover:bg-paper-sunken border border-black/5'

@@ -39,8 +39,8 @@ export default function SearchBox() {
 
   return (
     <form onSubmit={submit} className="relative max-w-xl">
-      <div className="flex items-center gap-2 bg-paper-raised border border-black/10 rounded-full pl-5 pr-1.5 py-1 focus-within:border-ink/30 transition-colors">
-        <span className="text-ink-faded text-[15px]" aria-hidden>
+      <div className="flex items-center gap-2 bg-paper-raised border border-black/10 rounded-full pl-5 pr-1.5 py-1.5 focus-within:border-ink/30 transition-colors">
+        <span className="text-ink-faded text-[17px]" aria-hidden>
           ⌕
         </span>
         <input
@@ -48,13 +48,13 @@ export default function SearchBox() {
           value={value}
           onChange={(e) => setValue(e.target.value)}
           placeholder="搜尋活動、課程、中心(例:太極、卡拉 OK、書法)"
-          className="flex-1 bg-transparent outline-none text-[14.5px] text-ink placeholder:text-ink-faded py-2"
+          className="flex-1 bg-transparent outline-none text-[16px] text-ink placeholder:text-ink-faded py-2"
         />
         {value && (
           <button
             type="button"
             onClick={clear}
-            className="text-[12px] text-ink-faded hover:text-ink px-2"
+            className="text-[14px] text-ink-faded hover:text-ink px-2"
             aria-label="清除"
           >
             ✕
@@ -62,7 +62,7 @@ export default function SearchBox() {
         )}
         <button
           type="submit"
-          className="bg-ink text-paper text-[13px] px-4 py-1.5 rounded-full hover:bg-ink-soft transition-colors"
+          className="bg-ink text-paper text-[14.5px] px-5 py-2 rounded-full hover:bg-ink-soft transition-colors"
         >
           搜尋
         </button>
