@@ -372,6 +372,130 @@ def to_activity_row(item: ScrapedItem) -> dict[str, Any]:
     }
 
 
+# ---- 圖片 URL 驗證 ----
+# 台中文化局 JSON 常給出檔名對不上實際檔案的 image_url(e.g. title 和 filename
+# 不一致),對方 server 找不到檔案時會 302 redirect 到 html error page,
+# 不是真的 200 image。前端直接顯示破圖。解法:HEAD 驗證,壞的存 null。
+
+def _is_image_url_ok(url: str | None, *, timeout: int = 8) -> bool:
+    """HEAD 驗證 image URL。200 + image/* content-type 才算 OK。
+    302 / 404 / 例外 / 非 image content-type 都算壞。
+    不 follow redirect(對方壞路徑會 302 到 html error 頁)。"""
+    if not url:
+        return False
+    try:
+        # 用 no-redirect handler(urllib 預設 follow redirect,這裡強制關掉)
+        class _NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, *args, **kwargs):
+                return None
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirect())
+        req = urllib.request.Request(url, method="HEAD", headers={"User-Agent": UA})
+        with opener.open(req, timeout=timeout) as r:
+            code = r.status
+            ct = (r.headers.get("Content-Type") or "").lower()
+            return code == 200 and ct.startswith("image/")
+    except Exception:
+        return False
+
+
+def validate_image_urls(items: list[ScrapedItem], *, workers: int = 10) -> int:
+    """並行 HEAD 驗證 items 裡的 image_url,壞的 set None。回傳清掉幾張。"""
+    from concurrent.futures import ThreadPoolExecutor
+
+    targets = [(i, it.image_url) for i, it in enumerate(items) if it.image_url]
+    if not targets:
+        return 0
+    print(f"[image-check] 驗證 {len(targets)} 張 image_url...", flush=True)
+
+    def _check(idx_url: tuple[int, str]) -> tuple[int, bool]:
+        idx, url = idx_url
+        return idx, _is_image_url_ok(url)
+
+    cleaned = 0
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        for idx, ok in ex.map(_check, targets):
+            if not ok:
+                items[idx].image_url = None
+                cleaned += 1
+    print(f"[image-check] → {cleaned} 張壞圖設 null(保留 {len(targets) - cleaned} 張)", flush=True)
+    return cleaned
+
+
+def sweep_bad_image_urls_in_db(supa_url: str, supa_key: str, *, workers: int = 10) -> int:
+    """掃 Supabase 裡 source_name=台中文化局 且 image_url 非 null 的 rows,
+    HEAD 驗證,壞的 UPDATE 成 null。一次性清理既有髒資料。回傳清了幾筆。"""
+    from concurrent.futures import ThreadPoolExecutor
+
+    # 1. 撈目標 rows(要分頁,PostgREST 預設 max 1000)
+    all_rows: list[dict] = []
+    offset = 0
+    PAGE = 1000
+    while True:
+        q = (
+            f"{supa_url}/rest/v1/activities?"
+            f"source_name=eq.{urllib.parse.quote(SOURCE_NAME)}"
+            f"&image_url=not.is.null&select=id,image_url"
+            f"&limit={PAGE}&offset={offset}"
+        )
+        req = urllib.request.Request(q, headers={
+            "apikey": supa_key,
+            "Authorization": f"Bearer {supa_key}",
+        })
+        with _NO_PROXY_OPENER.open(req, timeout=60) as r:
+            chunk = json.loads(r.read())
+        if not chunk:
+            break
+        all_rows.extend(chunk)
+        if len(chunk) < PAGE:
+            break
+        offset += PAGE
+
+    print(f"[sweep] 台中文化局有 image_url 的 rows:{len(all_rows)} 筆", flush=True)
+    if not all_rows:
+        return 0
+
+    # 2. 並行 HEAD
+    def _check(row: dict) -> int | None:
+        return None if _is_image_url_ok(row["image_url"]) else row["id"]
+
+    bad_ids: list[int] = []
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        done = 0
+        for result in ex.map(_check, all_rows):
+            done += 1
+            if result is not None:
+                bad_ids.append(result)
+            if done % 100 == 0:
+                print(f"[sweep] 已驗證 {done}/{len(all_rows)},目前找到 {len(bad_ids)} 筆壞圖", flush=True)
+
+    print(f"[sweep] 驗證完畢:{len(bad_ids)} 筆壞圖,{len(all_rows) - len(bad_ids)} 筆 OK", flush=True)
+    if not bad_ids:
+        return 0
+
+    # 3. 分批 PATCH image_url=null
+    BATCH = 100
+    total = 0
+    for i in range(0, len(bad_ids), BATCH):
+        chunk = bad_ids[i:i + BATCH]
+        ids_param = ",".join(str(x) for x in chunk)
+        upd_url = f"{supa_url}/rest/v1/activities?id=in.({ids_param})"
+        data = json.dumps({"image_url": None}).encode()
+        req = urllib.request.Request(
+            upd_url, data=data, method="PATCH",
+            headers={
+                "apikey": supa_key,
+                "Authorization": f"Bearer {supa_key}",
+                "Content-Type": "application/json",
+                "Prefer": "return=minimal",
+            },
+        )
+        with _NO_PROXY_OPENER.open(req, timeout=60) as r:
+            r.read()
+        total += len(chunk)
+        print(f"[sweep] 已清 {total}/{len(bad_ids)}", flush=True)
+    return total
+
+
 def upsert_to_supabase(rows: list[dict], supa_url: str, supa_key: str) -> int:
     if not rows:
         return 0
@@ -420,7 +544,22 @@ def main() -> int:
     ap.add_argument("--out", type=str)
     ap.add_argument("--upsert", action="store_true")
     ap.add_argument("--sleep", type=float, default=0.0)  # 為了跟其他 scraper 維持 arg 介面一致
+    ap.add_argument("--skip-image-check", action="store_true",
+                    help="跳過 image_url HEAD 驗證(預設會驗證,壞的設 null)")
+    ap.add_argument("--sweep-images", action="store_true",
+                    help="不抓新資料,單純掃 DB 既有 image_url,壞的 UPDATE 成 null")
     args = ap.parse_args()
+
+    # Sweep-only 模式:不抓新資料,只清既有髒 image_url
+    if args.sweep_images:
+        supa_url = os.environ.get("SUPABASE_URL")
+        supa_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+        if not supa_url or not supa_key:
+            print("[error] 缺 SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY", file=sys.stderr)
+            return 2
+        n = sweep_bad_image_urls_in_db(supa_url, supa_key)
+        print(f"\n=== Sweep 完成:{n} 筆壞圖 image_url 清為 null ===")
+        return 0
 
     items = scrape_all()
     print(f"\n=== 共 {len(items)} 筆 ===")
@@ -441,6 +580,10 @@ def main() -> int:
     print(f"  category: {dict(cat_c)}")
     print(f"  districts: {dict(dist_c.most_common())}")
     print(f"  無日期: {no_date} 筆(會標 recurring,避免被過期濾掉)")
+
+    # 驗 image_url 是否可達,壞的 set None(預設開;--skip-image-check 可關)
+    if not args.skip_image_check:
+        validate_image_urls(items)
 
     if args.out:
         with open(args.out, "w", encoding="utf-8") as f:

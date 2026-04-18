@@ -1,7 +1,7 @@
 import Link from 'next/link';
-import Image from 'next/image';
 import { Activity, CATEGORIES, PRICING_STYLE, PRICING_TIERS, formatEventTime, formatCost, pricingTierOf } from '@/lib/supabase';
 import BookmarkButton from './BookmarkButton';
+import ActivityImage from './ActivityImage';
 
 export default function ActivityCard({
   activity,
@@ -11,7 +11,6 @@ export default function ActivityCard({
   sessionCount?: number;
 }) {
   const category = activity.category ? CATEGORIES[activity.category] : null;
-  const imageUrl = activity.image_url || (activity.category ? `/images/categories/${activity.category}.svg` : '/images/categories/social.svg');
   const pricingTier = pricingTierOf(activity);
   const pricingStyle = PRICING_STYLE[pricingTier];
   // 定價 tag 已用獨立 badge 呈現,從 tags 中過濾掉避免重複
@@ -27,12 +26,10 @@ export default function ActivityCard({
       {/* 圖片 + 主內容都導到詳細頁 */}
       <Link href={detailHref} className="block">
         <div className="relative aspect-[5/3] bg-paper-sunken overflow-hidden rounded-t-2xl">
-          <Image
-            src={imageUrl}
-            alt={activity.title}
-            fill
-            className="object-cover group-hover:scale-[1.03] transition-transform duration-500"
-            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+          <ActivityImage
+            imageUrl={activity.image_url}
+            category={activity.category}
+            title={activity.title}
           />
         </div>
 

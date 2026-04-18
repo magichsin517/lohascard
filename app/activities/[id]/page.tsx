@@ -1,6 +1,6 @@
 import { supabase, Activity, CATEGORIES, formatEventTime, formatCost, groupKey } from '@/lib/supabase';
 import Header from '@/components/Header';
-import Image from 'next/image';
+import ActivityImage from '@/components/ActivityImage';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
@@ -67,7 +67,6 @@ export default async function ActivityDetailPage({
   const hasMultipleSessions = allSessions.length > 1;
 
   const category = activity.category ? CATEGORIES[activity.category] : null;
-  const imageUrl = activity.image_url || (activity.category ? `/images/categories/${activity.category}.svg` : '/images/categories/social.svg');
 
   return (
     <>
@@ -83,14 +82,11 @@ export default async function ActivityDetailPage({
 
         <article>
           {/* 封面圖 */}
-          <div className="relative aspect-[16/9] mb-8 rounded-2xl overflow-hidden bg-paper-sunken border border-black/5">
-            <Image
-              src={imageUrl}
-              alt={activity.title}
-              fill
-              className="object-cover"
-              priority
-              sizes="(max-width: 768px) 100vw, 768px"
+          <div className="group relative aspect-[16/9] mb-8 rounded-2xl overflow-hidden bg-paper-sunken border border-black/5">
+            <ActivityImage
+              imageUrl={activity.image_url}
+              category={activity.category}
+              title={activity.title}
             />
           </div>
 
