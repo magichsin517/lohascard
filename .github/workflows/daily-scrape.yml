@@ -1,4 +1,4 @@
-name: 每日爬蟲 — 樂齡網 + 弘道基金會 + 台北旅遊網
+name: 每日爬蟲 — 樂齡網 + 弘道 + 台北旅遊網 + 台中文化局
 
 # 每天台北時間凌晨 3:15 跑(= UTC 19:15 前一日)
 # 也可以手動到 Actions 頁面按 "Run workflow"
@@ -47,3 +47,15 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           python3 scripts/scrape/gov_taipei.py --upsert --sleep 0.5
+
+      - name: Run 台中文化局 scraper (藝文活動查詢 JSON)
+        # 台中市政府文化局 activity.culture.taichung.gov.tw 開放 JSON,
+        # 涵蓋 29 個區的藝文活動(展覽/表演/講座/研習/影片欣賞等)。
+        # 單次量大(幾百筆),但多數是長期展覽,dedup 後每日新增量不高。
+        if: always()
+        continue-on-error: true
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          python3 scripts/scrape/gov_taichung.py --upsert --sleep 0.5
