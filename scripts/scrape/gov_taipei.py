@@ -34,7 +34,9 @@ from datetime import date, timedelta
 from typing import Any
 
 BASE = "https://www.travel.taipei/open-api/zh-tw"
-UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 LohasCardBot/0.1"
+# 台北旅遊網 WAF 會擋 "bot" 字樣 UA,改用真實 Chrome UA 避免 403
+UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+REFERER = "https://www.travel.taipei/open-api/swagger/ui/index"
 SOURCE_ACTIVITY = "台北旅遊網-活動展演"
 SOURCE_CALENDAR = "台北旅遊網-活動年曆"
 
@@ -76,12 +78,17 @@ class ScrapedItem:
 
 
 def fetch_json(url: str, *, retries: int = 3, timeout: int = 40) -> Any:
-    """台北旅遊網 API 需要 Accept: application/json 才會回 JSON。"""
+    """台北旅遊網 API:
+    - 需要 Accept: application/json 才會回 JSON(否則 400 Invalid Parameter)
+    - WAF 會擋 "LohasCardBot" 這類自訂 UA(403 Forbidden),改用真實 Chrome UA
+    - 加 Referer 模擬從 Swagger UI 發出的請求,更像真人使用
+    """
     last = None
     headers = {
         "User-Agent": UA,
         "Accept": "application/json",
-        "Accept-Language": "zh-TW",
+        "Accept-Language": "zh-TW,zh;q=0.9,en;q=0.8",
+        "Referer": REFERER,
     }
     for i in range(retries):
         try:
