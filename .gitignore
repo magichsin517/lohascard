@@ -9,3 +9,7 @@ next-env.d.ts
 
 # 工作暫存資料夾,內含密鑰等 sensitive 檔,絕不上 GitHub
 lohascard乐活卡卡/
+
+# Python
+__pycache__/
+*.pyc
