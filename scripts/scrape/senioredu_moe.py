@@ -103,10 +103,12 @@ class ScrapedItem:
     raw_section: str              # SeniorCenter | Education | Government
 
 
-def fetch(url: str, *, retries: int = 3, backoff: float = 2.0, timeout: int = 60) -> str:
+def fetch(url: str, *, retries: int = 2, backoff: float = 1.5, timeout: int = 25) -> str:
     """下載 URL,自動重試,回傳解碼 HTML。
 
-    timeout 給 60s — 從 GitHub Actions(美國機房)連台灣政府網站會很慢。
+    timeout 給 25s — 台灣政府網站從 GHA(美國機房)延遲高,但 60s 太肥,
+    一個縣市卡死會拖慢整個 job。2 次 retries × 25s timeout + 1.5s backoff,
+    單一縣市最糟約 52s,搭配 parallel 執行 22 縣市可控。
     """
     last_exc = None
     headers = {
@@ -398,25 +400,54 @@ def main() -> int:
     ap.add_argument("--out", type=str, help="輸出 JSON 檔路徑(不提供則不輸出檔案)")
     ap.add_argument("--upsert", action="store_true", help="直接 upsert 進 Supabase")
     ap.add_argument("--limit-per-city", type=int, default=50)
-    ap.add_argument("--sleep", type=float, default=1.0, help="每城市之間停等秒數")
+    ap.add_argument("--sleep", type=float, default=0.0,
+                    help="(保留相容)舊版每城市間停等秒數。平行執行下已不使用。")
+    ap.add_argument("--workers", type=int, default=6,
+                    help="平行 worker 數,預設 6(= 同時連 6 個縣市子站)")
     args = ap.parse_args()
 
-    all_items: list[ScrapedItem] = []
-    for i, city in enumerate(args.cities):
-        if city not in CITY_MAP:
-            print(f"[skip] unknown city code: {city}", file=sys.stderr)
-            continue
-        try:
-            items = scrape_city(city)
-        except Exception as e:
-            print(f"[error] {city}: {e}", file=sys.stderr)
-            continue
-        items = items[: args.limit_per_city]
-        all_items.extend(items)
-        print(f"[{i+1:>2}/{len(args.cities)}] {CITY_MAP[city]:6} → {len(items)} 筆")
-        time.sleep(args.sleep)
+    # 過濾 unknown city code
+    cities = [c for c in args.cities if c in CITY_MAP]
+    for c in args.cities:
+        if c not in CITY_MAP:
+            print(f"[skip] unknown city code: {c}", file=sys.stderr)
 
-    print(f"\n=== 總共爬到 {len(all_items)} 筆 ===")
+    # 平行抓取 22 縣市。單一縣市 fail 不影響其他,最後統計成功/失敗。
+    # 原本 sequential 跑法在 GHA 上 22 × 3retries × 60s timeout 很容易撞到
+    # 20 分鐘 job timeout;改 ThreadPoolExecutor + 較短 timeout 控制 wall time。
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    all_items: list[ScrapedItem] = []
+    fail_count = 0
+    success_count = 0
+
+    def _run(city: str) -> tuple[str, list[ScrapedItem] | None, Exception | None]:
+        try:
+            return city, scrape_city(city), None
+        except Exception as exc:
+            return city, None, exc
+
+    with ThreadPoolExecutor(max_workers=max(1, args.workers)) as ex:
+        futures = {ex.submit(_run, c): c for c in cities}
+        for i, fut in enumerate(as_completed(futures), 1):
+            city, items, exc = fut.result()
+            if exc is not None or items is None:
+                print(f"[{i:>2}/{len(cities)}] {CITY_MAP[city]:6} → error: {exc}",
+                      file=sys.stderr)
+                fail_count += 1
+                continue
+            items = items[: args.limit_per_city]
+            all_items.extend(items)
+            success_count += 1
+            print(f"[{i:>2}/{len(cities)}] {CITY_MAP[city]:6} → {len(items)} 筆")
+
+    print(f"\n=== 總共爬到 {len(all_items)} 筆"
+          f"(成功 {success_count} / 失敗 {fail_count} 縣市)===")
+
+    # 全部縣市都失敗才視為 job 失敗;部分失敗仍視為成功(常見情況是個別 gov 站 5xx)
+    if cities and fail_count == len(cities):
+        print("[error] 全部 22 縣市都失敗,視為 job 失敗", file=sys.stderr)
+        return 3
 
     if args.out:
         with open(args.out, "w", encoding="utf-8") as f:

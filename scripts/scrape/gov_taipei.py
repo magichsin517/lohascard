@@ -317,6 +317,8 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", type=str)
     ap.add_argument("--upsert", action="store_true")
+    # RSS 只打一次 request,--sleep 無實際作用,純粹跟其他 scraper 對齊 CLI 介面
+    ap.add_argument("--sleep", type=float, default=0.0)
     args = ap.parse_args()
 
     items = scrape_all()
