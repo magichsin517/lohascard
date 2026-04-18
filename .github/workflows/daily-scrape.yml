@@ -1,4 +1,4 @@
-name: 每日爬蟲 — 教育部樂齡學習網
+name: 每日爬蟲 — 樂齡網 + 弘道基金會 + 台北旅遊網
 
 # 每天台北時間凌晨 3:15 跑(= UTC 19:15 前一日)
 # 也可以手動到 Actions 頁面按 "Run workflow"
@@ -10,7 +10,7 @@ on:
 jobs:
   scrape:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -20,9 +20,30 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Run 樂齡網 scraper
+      - name: Run 樂齡網 scraper (教育部樂齡學習網全台 22 縣市)
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           python3 scripts/scrape/senioredu_moe.py --upsert --sleep 0.5
+
+      - name: Run 弘道基金會 scraper (活動消息)
+        # 弘道 server 非台灣 gov,GH Actions 連得到、不 timeout。
+        # 失敗不影響後續 step(continue-on-error),確保其他 scraper 照常跑。
+        if: always()
+        continue-on-error: true
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          python3 scripts/scrape/hondao.py --upsert --sleep 0.5
+
+      - name: Run 台北旅遊網 scraper (活動展演 + 活動年曆 Open API)
+        # 台北旅遊網是官方 Open API(JSON),穩定度高。
+        if: always()
+        continue-on-error: true
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          python3 scripts/scrape/gov_taipei.py --upsert --sleep 0.5
