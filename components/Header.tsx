@@ -22,7 +22,26 @@ export default function Header() {
           </span>
         </Link>
 
-        <nav className="flex items-center gap-2 md:gap-3">
+        <nav className="flex items-center gap-1 md:gap-2">
+          <Link
+            href="/venue"
+            className="text-sm px-3 md:px-4 py-2 rounded-full text-ink-soft hover:text-ink hover:bg-paper-sunken transition-colors inline-flex items-center gap-1.5"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z" />
+              <circle cx="12" cy="10" r="3" />
+            </svg>
+            附近據點
+          </Link>
           <Link
             href="/me"
             className="text-sm px-3 md:px-4 py-2 rounded-full text-ink-soft hover:text-ink hover:bg-paper-sunken transition-colors inline-flex items-center gap-1.5"
