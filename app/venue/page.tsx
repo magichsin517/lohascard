@@ -22,15 +22,17 @@ export const revalidate = 43200;
 export default async function VenuesPage({
   searchParams,
 }: {
-  searchParams: { city?: string };
+  searchParams: Promise<{ city?: string }>;
 }) {
+  const params = await searchParams;
+
   let q = supabase
     .from('activities')
     .select('id, title, city, district, location_name')
     .eq('source_name', VENUE_SOURCE);
 
-  if (searchParams?.city) {
-    q = q.eq('city', searchParams.city);
+  if (params?.city) {
+    q = q.eq('city', params.city);
   }
 
   const { data: venues } = await q
@@ -65,7 +67,7 @@ export default async function VenuesPage({
           <Link
             href="/venue"
             className={`text-sm px-3 py-1.5 rounded-full border ${
-              !searchParams?.city
+              !params?.city
                 ? 'bg-ink text-paper-raised border-ink'
                 : 'border-black/10 hover:border-black/30'
             }`}
@@ -79,7 +81,7 @@ export default async function VenuesPage({
                 key={city}
                 href={`/venue?city=${encodeURIComponent(city)}`}
                 className={`text-sm px-3 py-1.5 rounded-full border ${
-                  searchParams?.city === city
+                  params?.city === city
                     ? 'bg-ink text-paper-raised border-ink'
                     : 'border-black/10 hover:border-black/30'
                 }`}
