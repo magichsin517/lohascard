@@ -31,11 +31,13 @@ const WEEKDAY_ZH = ['日', '一', '二', '三', '四', '五', '六'];
 
 function formatDate(s: string | null): string {
   if (!s) return '';
-  const d = new Date(s + 'T00:00:00+08:00');
-  const mo = d.getMonth() + 1;
-  const day = d.getDate();
-  const w = WEEKDAY_ZH[d.getDay()];
-  return `${mo}/${day}(${w})`;
+  // DB 的 start_date 是純日期字串(YYYY-MM-DD),代表的是台北當日,
+  // 不該過 new Date() 因為 Vercel runtime 是 UTC,會 getDate() 少一天、星期錯一位。
+  // 直接從字串拆欄位,weekday 用 UTC 算避免 local 時區影響。
+  const [y, m, d] = s.split('-').map(Number);
+  if (!y || !m || !d) return '';
+  const wd = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+  return `${m}/${d}(${WEEKDAY_ZH[wd]})`;
 }
 
 function utmSuffix(): string {
