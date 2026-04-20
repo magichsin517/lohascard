@@ -163,15 +163,15 @@ export default async function HomePage({
         {/* Hero 區塊 */}
         <section className="py-14 md:py-20 border-b border-black/5">
           <p className="text-[12px] tracking-[0.25em] text-ink-faded uppercase mb-5">
-            For 55+ · Taiwan
+            LOHAS · 55+
           </p>
           <h1 className="font-display text-[38px] md:text-[56px] leading-[1.2] text-ink max-w-3xl mb-5">
-            樂齡的每一天,<br />
-            都值得好好過。
+            才剛 55,<br />
+            生活才真的要開始。
           </h1>
           <p className="text-ink-muted text-[17px] md:text-[19px] max-w-xl leading-relaxed">
-            我們幫你從全台樂齡學習中心、社區關懷據點、里長、老人服務中心的活動裡,挑出最值得參加的那些。
-            免費或小額,在你家附近,說走就走。
+            剛退休的人最該做的,是跨出熟人圈、看見更多選擇。
+            我們每週替你從雙北挑幾個值得走一趟的,走出家門就到。
           </p>
         </section>
 
@@ -242,10 +242,10 @@ export default async function HomePage({
         <footer className="border-t border-black/5 py-10 text-center">
           <p className="font-display text-xl text-ink mb-2">樂活卡卡</p>
           <p className="text-[13px] text-ink-muted">
-            Lohas Card · 為台灣樂齡族聚合好活動
+            Lohas Card · 陪你走出精彩的下半場
           </p>
           <p className="text-[12.5px] text-ink-faded mt-4">
-            資料來源:教育部樂齡學習網、衛生福利部社區照顧關懷據點、各縣市政府、各合作單位
+            資料來源:各縣市政府、教育部、衛福部、各合作單位
           </p>
         </footer>
       </main>
