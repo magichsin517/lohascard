@@ -103,8 +103,16 @@ export async function POST(req: NextRequest) {
           const ev = event as LineMessageEvent;
           if (ev.message.type === 'text') {
             const userText = (ev.message as LineTextMessage).text;
-            const answer = matchQA(userText);
-            await replyText(ev.replyToken, answer, CHANNEL_ACCESS_TOKEN);
+            // 暫時性 debug 指令:回傳呼叫者 userId,供推播設定使用。
+            // 上線前若擔心被亂用可拿掉,不過 userId 本身不是 secret(只能對特定 channel 用)
+            const trimmed = userText.trim().toLowerCase();
+            if (trimmed === 'myid' || trimmed === '我的id' || trimmed === 'userid') {
+              const uid = ev.source.userId || '(source has no userId, private chat only?)';
+              await replyText(ev.replyToken, `你的 LINE userId:\n${uid}`, CHANNEL_ACCESS_TOKEN);
+            } else {
+              const answer = matchQA(userText);
+              await replyText(ev.replyToken, answer, CHANNEL_ACCESS_TOKEN);
+            }
           }
           // 其他訊息類型(圖片、貼圖等)暫不處理
         } else if (event.type === 'follow') {
