@@ -16,6 +16,36 @@ const PAGE_SIZE = 30;
 // 用一個上限保護,超過就截斷(2026-04 加入衛福部 5800+ 據點後拉高)。
 const GROUPING_FETCH_CAP = 12000;
 
+// 「本週精選」— 編輯手挑的好活動,is_curated=TRUE
+// 不套 category/district/city filter,讓精選區塊對所有使用者都顯示同一批
+async function getCuratedActivities(): Promise<Activity[]> {
+  const today = new Date().toISOString().slice(0, 10);
+  const { data, error } = await supabase
+    .from('activities')
+    .select('*')
+    .eq('status', 'active')
+    .eq('is_curated', true)
+    // 過期過濾(同 getActivityGroups 的邏輯):
+    //   - recurring 永遠顯示
+    //   - single 若有 end_date,必須 end_date >= 今天
+    //   - single 若只有 start_date,必須 start_date >= 今天
+    //   - 完全沒日期的也保留(極少數 curated 會是這種)
+    .or(
+      `event_type.eq.recurring,` +
+      `end_date.gte.${today},` +
+      `and(end_date.is.null,start_date.gte.${today}),` +
+      `and(end_date.is.null,start_date.is.null)`
+    )
+    .order('start_date', { ascending: true, nullsFirst: false })
+    .order('id', { ascending: true })
+    .limit(12);
+  if (error) {
+    console.error('[getCuratedActivities]', error);
+    return [];
+  }
+  return (data as Activity[]) || [];
+}
+
 async function getActivityGroups(
   category: string | undefined,
   district: string | undefined,
@@ -103,16 +133,27 @@ export default async function HomePage({
 }) {
   const params = await searchParams;
   const page = Math.max(1, parseInt(params.page || '1', 10) || 1);
-  const { groups, total } = await getActivityGroups(
-    params.category,
-    params.district,
-    params.city,
-    params.pricing,
-    params.source,
-    params.q,
-    page
-  );
+  // 並行撈本週精選 + 主列表(獨立 query,不相互等待)
+  const [curated, { groups, total }] = await Promise.all([
+    getCuratedActivities(),
+    getActivityGroups(
+      params.category,
+      params.district,
+      params.city,
+      params.pricing,
+      params.source,
+      params.q,
+      page
+    ),
+  ]);
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  // 精選區塊只在首頁(無任何 filter / 搜尋 / 非第一頁)顯示
+  // 避免使用者點 filter 後,上方還卡著一整排固定 10 筆造成誤導
+  const isDefaultView =
+    !params.category && !params.district && !params.city &&
+    !params.pricing && !params.source && !params.q &&
+    page === 1;
 
   return (
     <>
@@ -133,6 +174,30 @@ export default async function HomePage({
             免費或小額,在你家附近,說走就走。
           </p>
         </section>
+
+        {/* 本週精選 — 編輯手挑 */}
+        {isDefaultView && curated.length > 0 && (
+          <section className="py-10 md:py-14 border-b border-black/5">
+            <div className="flex items-baseline justify-between mb-6 md:mb-8">
+              <div>
+                <p className="text-[12px] tracking-[0.25em] text-ink-faded uppercase mb-2">
+                  Weekly Picks
+                </p>
+                <h2 className="font-display text-[26px] md:text-[32px] leading-tight text-ink">
+                  本週精選
+                </h2>
+                <p className="text-[14px] md:text-[15px] text-ink-muted mt-2">
+                  由編輯手挑,走出家門就能參加的好活動
+                </p>
+              </div>
+            </div>
+            <div className="grid gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+              {curated.map((a) => (
+                <ActivityCard key={a.id} activity={a} />
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* 篩選區 */}
         <section className="py-8 md:py-10 space-y-4">

@@ -39,6 +39,7 @@ export interface Activity {
   image_url: string | null;
   source_url: string | null;
   status: string;
+  is_curated: boolean;
   created_at: string;
   updated_at: string;
 }
