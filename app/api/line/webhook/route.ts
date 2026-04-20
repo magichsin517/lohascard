@@ -63,8 +63,14 @@ async function replyText(replyToken: string, text: string, accessToken: string):
     }),
   });
   if (!res.ok) {
+    // 原本只 console.error 讓錯誤被吞掉 — 2026-04-20 踩到:rotate LINE token 後忘記更新
+    // Vercel env,reply API 401,webhook 還是回 200 給 LINE、LINE 標已讀但使用者沒收到
+    // 回覆,極難從外部 debug。改 throw 讓 Vercel runtime log 看到 loud error;外層
+    // events.map 的 try/catch 仍會攔住,單一 event 失敗不影響 webhook 整體狀態。
     const errBody = await res.text().catch(() => '');
-    console.error('[line-webhook] reply failed:', res.status, errBody);
+    const msg = `[line-webhook] reply failed: ${res.status} ${errBody}`;
+    console.error(msg);
+    throw new Error(msg);
   }
 }
 
