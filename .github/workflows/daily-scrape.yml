@@ -1,4 +1,4 @@
-name: 每日爬蟲 — 弘道 + 台北旅遊網 + 台中文化局
+name: 每日爬蟲 — 弘道 + 台北旅遊網 + 台中文化局 + 文化部iCulture
 
 # 每天台北時間凌晨 3:15 跑(= UTC 19:15 前一日)
 # 也可以手動到 Actions 頁面按 "Run workflow"
@@ -81,3 +81,21 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: python3 scripts/scrape/gov_taichung.py --upsert --sleep 0.5
+
+  # 文化部 iCulture:全台藝文活動(整合 100+ 公民營網站),約 2-5 min
+  # 首次跑過 3,703 筆 sessions;雙北 + 未來 45 天 + 有 start_date 從 2→689
+  # cloud.culture.tw 從 GHA 美國機房連得到,無須本地跑
+  culture_moc:
+    name: 文化部 iCulture (全台藝文活動)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run culture_moc
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: python3 scripts/scrape/culture_moc.py --upsert
