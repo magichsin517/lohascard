@@ -1,16 +1,13 @@
-name: 每日爬蟲 — 弘道 + 台北旅遊網 + 台中文化局 + 文化部iCulture
+name: 每日爬蟲 — 弘道 + 台北 + 台中 + 文化部iCulture + 高雄(圖書館) + 台南(文化局) + 桃園
 
 # 每天台北時間凌晨 3:15 跑(= UTC 19:15 前一日)
 # 也可以手動到 Actions 頁面按 "Run workflow"
 #
 # 改版紀錄:
-#   2026-04-18 早:所有 scraper 在同一個 job 內串接跑,樂齡網 8-12min 吃掉
-#     大部分時間,導致整個 job 撞到 10 分鐘 timeout 被 cancel。
-#     改成平行 jobs,每個 scraper 自己一個 job,互不干擾。
-#   2026-04-18 晚:樂齡網(moe.senioredu.moe.gov.tw)從 GHA 美國機房 IP
-#     100% urlopen timeout,TW 家用網路 OK。判定是 server 端 geo 擋。
-#     樂齡網 job 註解掉,改用本地 Mac 的「執行樂齡.command」手動跑。
-#     GHA 只負責 GHA 打得通的三個 scraper。
+#   2026-04-18 早:改成平行 jobs，互不干擾。
+#   2026-04-18 晚:樂齡網從 GHA 下架(geo 封鎖，改本地 Mac .command 跑)
+#   2026-04-20:iCulture 加入 GHA
+#   2026-05-20:新增高雄、台南、桃園三個城市爬蟲，擴展至全台覆蓋
 
 on:
   schedule:
@@ -34,7 +31,7 @@ jobs:
   #         SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
   #       run: python3 scripts/scrape/senioredu_moe.py --upsert
 
-  # 弘道老人福利基金會:活動消息,約 1-2 min
+  # 弘道老人福利基金會:活動消息，全台，約 1-2 min
   hondao:
     name: 弘道基金會 (活動消息)
     runs-on: ubuntu-latest
@@ -50,7 +47,7 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: python3 scripts/scrape/hondao.py --upsert --sleep 0.5
 
-  # 台北旅遊網 RSS:10 筆,約 30 秒
+  # 台北旅遊網 RSS:10 筆，約 30 秒
   gov_taipei:
     name: 台北旅遊網 (RSS)
     runs-on: ubuntu-latest
@@ -66,7 +63,7 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: python3 scripts/scrape/gov_taipei.py --upsert --sleep 0.5
 
-  # 台中市政府文化局:幾百筆藝文活動,約 1-3 min
+  # 台中市政府文化局:幾百筆藝文活動，約 1-3 min
   gov_taichung:
     name: 台中文化局 (藝文活動 JSON)
     runs-on: ubuntu-latest
@@ -82,9 +79,7 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: python3 scripts/scrape/gov_taichung.py --upsert --sleep 0.5
 
-  # 文化部 iCulture:全台藝文活動(整合 100+ 公民營網站),約 2-5 min
-  # 首次跑過 3,703 筆 sessions;雙北 + 未來 45 天 + 有 start_date 從 2→689
-  # cloud.culture.tw 從 GHA 美國機房連得到,無須本地跑
+  # 文化部 iCulture:全台藝文活動(整合 100+ 公民營網站)，約 2-5 min
   culture_moc:
     name: 文化部 iCulture (全台藝文活動)
     runs-on: ubuntu-latest
@@ -99,3 +94,56 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: python3 scripts/scrape/culture_moc.py --upsert
+
+  # 高雄市立圖書館:講座/展覽/活動，2 頁共 ~20 筆，約 30-60 秒
+  # 資料源: https://www.ksml.edu.tw/lib/Latestevent/index.aspx?Parser=9,83,918
+  # (2026-05-20 確認可用，SSL OK，無 geo 封鎖)
+  gov_kaohsiung:
+    name: 高雄市立圖書館 (活動講座)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run gov_kaohsiung
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: python3 scripts/scrape/gov_kaohsiung.py --upsert --sleep 0.8 --no-detail
+
+  # 台南市政府文化局:活動訊息，4 頁共 ~35 筆，約 1-2 min
+  # 資料源: https://culture.tainan.gov.tw/active/index?Parser=99,3,31,,,,,,,,{page}
+  # (2026-05-20 確認可用，HTML 靜態頁，全日期均有)
+  gov_tainan:
+    name: 台南市政府文化局 (藝文活動)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run gov_tainan
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: python3 scripts/scrape/gov_tainan.py --upsert --sleep 0.8
+
+  # 桃園市政府活動:RSS 端點目前 404，iCulture 已涵蓋桃園 900+ 筆
+  # 本 job exit 0 (不報錯)，待找到可用靜態端點後更新 RSS_CANDIDATES
+  gov_taoyuan:
+    name: 桃園市政府活動 (RSS，待補端點)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run gov_taoyuan
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: python3 scripts/scrape/gov_taoyuan.py --upsert --sleep 0.5

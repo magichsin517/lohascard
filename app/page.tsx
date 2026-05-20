@@ -8,6 +8,9 @@ import SourceFilter from '@/components/SourceFilter';
 import Pagination from '@/components/Pagination';
 import SearchBox from '@/components/SearchBox';
 import LineCallout from '@/components/LineCallout';
+import RegionPicker from '@/components/RegionPicker';
+
+import { Suspense } from 'react';
 
 export const revalidate = 60; // 每分鐘重新驗證一次
 
@@ -171,7 +174,7 @@ export default async function HomePage({
           </h1>
           <p className="text-ink-muted text-[17px] md:text-[19px] max-w-xl leading-relaxed">
             剛退休的人最該做的,是跨出熟人圈、看見更多選擇。
-            我們每週替你從雙北挑幾個值得走一趟的,走出家門就到。
+            每週精選全台各地好活動，走出家門就能參加。
           </p>
         </section>
 
@@ -201,6 +204,9 @@ export default async function HomePage({
 
         {/* 篩選區 */}
         <section className="py-8 md:py-10 space-y-4">
+          <Suspense fallback={null}>
+            <RegionPicker />
+          </Suspense>
           <SearchBox />
           <SourceFilter />
           <CategoryFilter />
