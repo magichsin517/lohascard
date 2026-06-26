@@ -199,6 +199,9 @@ def item_to_row(item: dict, fetch_detail: bool = True, sleep: float = 0.5) -> di
         "tags": pricing_tags,
         "target_audience": "55+" if is_senior else "不限",
         "cost": 0 if is_free else 1,
+        "cost_note": None,
+        "recurring_rule": None,
+        "location_name": None,
         "signup_method": "online",
         "signup_url": item["source_url"],
         "image_url": None,
@@ -229,10 +232,15 @@ def upsert_to_supabase(rows: list[dict], supabase_url: str, service_key: str) ->
         headers=headers,
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        status = resp.status
-    print(f"[upsert] HTTP {status}, {len(deduped)} rows")
-    return len(deduped)
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            status = resp.status
+        print(f"[upsert] HTTP {status}, {len(deduped)} rows")
+        return len(deduped)
+    except urllib.error.HTTPError as e:
+        err_body = e.read().decode("utf-8", errors="replace")
+        print(f"[upsert] HTTP {e.code} ERROR body: {err_body[:3000]}", file=sys.stderr)
+        raise
 
 
 def main() -> None:
